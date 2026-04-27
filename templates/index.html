@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="default">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spy AI — Translation Pre-Research Assistant</title>
+    <meta name="description"
+        content="Spy AI helps translation students with pre-research by identifying unfamiliar terms, providing context-aware translations, and summarizing proper nouns.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="bg-animation" aria-hidden="true">
+        <div class="bg-orb bg-orb--1"></div>
+        <div class="bg-orb bg-orb--2"></div>
+        <div class="bg-orb bg-orb--3"></div>
+    </div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- HEADER -->
+    <header class="header" id="site-header">
+        <div class="header__inner">
+            <div class="header__brand">
+                <div class="header__logo">
+                    <svg width="44" height="44" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="42" cy="42" r="28" stroke="url(#lg)" stroke-width="5" fill="rgba(0,212,255,0.08)" />
+                        <text x="42" y="47" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900"
+                            font-size="18" fill="url(#lg)">SPY</text>
+                        <line x1="62" y1="62" x2="88" y2="88" stroke="url(#lg)" stroke-width="6"
+                            stroke-linecap="round" />
+                        <defs>
+                            <linearGradient id="lg" x1="0" y1="0" x2="100" y2="100">
+                                <stop offset="0%" stop-color="var(--accent-cyan,#00d4ff)" />
+                                <stop offset="100%" stop-color="var(--accent-purple,#7c3aed)" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="header__title">Spy AI</h1>
+                    <p class="header__tagline">Your Translation Research Intelligence</p>
+                </div>
+            </div>
+            <button class="btn btn--ghost" id="settings-toggle" type="button">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path
+                        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                </svg>
+                Settings
+            </button>
+        </div>
+    </header>
+
+    <!-- SETTINGS -->
+    <section class="settings-panel" id="settings-panel" aria-hidden="true">
+        <div class="settings-panel__inner">
+            <!-- Row 1: API + Direction -->
+            <div class="settings-group settings-group--wide">
+                <label class="settings-label" for="deepl-key-input">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    DeepL API Key <span class="settings-optional">(optional)</span>
+                </label>
+                <input type="password" id="deepl-key-input" class="input" placeholder="Paste your DeepL API key..."
+                    autocomplete="off">
+                <p class="settings-hint">Free at <a href="https://www.deepl.com/pro-api"
+                        target="_blank">deepl.com/pro-api</a>. Falls back to Google Translate.</p>
+            </div>
+            <div class="settings-group settings-group--narrow">
+                <label class="settings-label">Direction</label>
+                <div class="direction-toggle">
+                    <button class="direction-btn direction-btn--active" data-dir="en-tr" type="button">🇬🇧 EN → TR
+                        🇹🇷</button>
+                    <button class="direction-btn" data-dir="tr-en" type="button">🇹🇷 TR → EN 🇬🇧</button>
+                </div>
+            </div>
+
+            <!-- Row 2: UI Theme (organized grid) -->
+            <div class="settings-group">
+                <label class="settings-label">UI Theme</label>
+                <div class="picker-row" id="theme-picker">
+                    <button class="theme-swatch" data-theme="dark"><span class="swatch-color"
+                            style="background:#0a0e27"></span><span class="swatch-name">Dark</span></button>
+                    <button class="theme-swatch theme-swatch--active" data-theme="light"><span class="swatch-color"
+                            style="background:#f0f2f7"></span><span class="swatch-name">Light</span></button>
+                    <button class="theme-swatch" data-theme="dark-hc"><span class="swatch-color"
+                            style="background:#000"></span><span class="swatch-name">Dark HC</span></button>
+                    <button class="theme-swatch" data-theme="light-hc"><span class="swatch-color"
+                            style="background:#fff;border-color:#000"></span><span class="swatch-name">Light
+                            HC</span></button>
+                    <button class="theme-swatch" data-theme="solarized-dark"><span class="swatch-color"
+                            style="background:#002b36"></span><span class="swatch-name">Sol. Dark</span></button>
+                    <button class="theme-swatch" data-theme="solarized-light"><span class="swatch-color"
+                            style="background:#fdf6e3"></span><span class="swatch-name">Sol. Light</span></button>
+                </div>
+            </div>
+
+            <!-- Row 3: Color Theme -->
+            <div class="settings-group">
+                <label class="settings-label">Color Theme</label>
+                <div class="picker-row" id="accent-picker">
+                    <button class="theme-swatch theme-swatch--active" data-accent="default"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#7dd3fc,#5456e3)"></span><span
+                            class="swatch-name">Sapphire</span></button>
+                    <button class="theme-swatch" data-accent="jade"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#34d373,#059669)"></span><span
+                            class="swatch-name">Jade</span></button>
+                    <button class="theme-swatch" data-accent="citrine"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#fde047,#eab308)"></span><span
+                            class="swatch-name">Citrine</span></button>
+                    <button class="theme-swatch" data-accent="amber"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#ffba71,#ea580c)"></span><span
+                            class="swatch-name">Amber</span></button>
+                    <button class="theme-swatch" data-accent="ruby"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#ff4747,#ba2626)"></span><span
+                            class="swatch-name">Ruby</span></button>
+                    <button class="theme-swatch" data-accent="rose"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#f472b6,#db2777)"></span><span
+                            class="swatch-name">Rose</span></button>
+                    <button class="theme-swatch" data-accent="amethyst"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#a78bfa,#6422b0)"></span><span
+                            class="swatch-name">Amethyst</span></button>
+                    <button class="theme-swatch" data-accent="onyx"><span class="swatch-color"
+                            style="background:linear-gradient(135deg,#86888c,#37393d)"></span><span
+                            class="swatch-name">Onyx</span></button>
+                </div>
+            </div>
+
+            <!-- Row 4: Panel Position -->
+            <div class="settings-group">
+                <label class="settings-label">Panel Position</label>
+                <div class="picker-row" id="position-picker">
+                    <button class="pos-swatch pos-swatch--active" data-pos="bottom">⬇ Bottom</button>
+                    <button class="pos-swatch" data-pos="right">➡ Right</button>
+                    <button class="pos-swatch" data-pos="left">⬅ Left</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MAIN -->
+    <main class="main">
+        <section class="upload-section" id="upload-section">
+            <div class="upload-zone" id="upload-zone" role="button" tabindex="0">
+                <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" hidden>
+                <div class="upload-zone__icon"><svg width="56" height="56" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg></div>
+                <h2 class="upload-zone__title">Drop your source text here</h2>
+                <p class="upload-zone__subtitle">or click to browse files</p>
+                <div class="upload-zone__badges"><span class="badge badge--pdf">PDF</span><span
+                        class="badge badge--docx">DOCX</span><span class="badge badge--txt">TXT</span></div>
+            </div>
+            <div class="file-info" id="file-info" hidden>
+                <div class="file-info__details">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <span id="file-name">—</span><span class="file-info__size" id="file-size"></span>
+                </div>
+                <div class="file-info__actions">
+                    <button class="btn btn--primary" id="analyze-btn" type="button"><svg width="18" height="18"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg> Analyze</button>
+                    <button class="btn btn--ghost" id="clear-btn" type="button">Clear</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="loading-section" id="loading-section" hidden>
+            <div class="loading-card">
+                <div class="loading-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring spinner-ring--inner"></div>
+                </div>
+                <h3 class="loading-title">Spy AI is analyzing your text…</h3>
+                <p class="loading-status" id="loading-status">Extracting text...</p>
+                <div class="loading-bar">
+                    <div class="loading-bar__fill" id="loading-bar-fill"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="results-section" id="results-section" hidden>
+            <div class="stats-strip">
+                <span class="stats-strip__item"><span class="stats-strip__num" id="stat-terms">0</span> terms</span>
+                <span class="stats-strip__sep"></span>
+                <span class="stats-strip__item"><span class="stats-strip__num" id="stat-entities">0</span>
+                    entities</span>
+                <span class="stats-strip__sep"></span>
+                <span class="stats-strip__item">via <strong id="stat-engine">Google Translate</strong></span>
+            </div>
+            <div class="tabs">
+                <button class="tab tab--active" data-tab="terms" type="button" id="tab-terms">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 7V4h16v3" />
+                        <path d="M9 20h6" />
+                        <path d="M12 4v16" />
+                    </svg>
+                    Source Text
+                </button>
+                <button class="tab" data-tab="entities" type="button" id="tab-entities">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Entities
+                </button>
+            </div>
+            <div id="terms-view">
+                <div class="results-layout" id="results-layout" data-panel-pos="bottom">
+                    <div class="source-text-view" id="source-text-view"></div>
+                    <div id="detail-panel-anchor"></div>
+                </div>
+            </div>
+            <div class="results-grid" id="entities-container" hidden></div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Spy AI &mdash; Translation Pre-Research Assistant</p>
+        <p class="footer__sub">Built for translation students &bull; Context-aware analysis powered by NLP</p>
+    </footer>
+    <script src="/static/script.js"></script>
+</body>
+
+</html>
