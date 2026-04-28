@@ -468,29 +468,28 @@ def is_valid_entity(name: str, label: str) -> bool:
         return name_stripped[0].isupper()
 
     # For ORG, EVENT, WORK_OF_ART:
-    # Only filter if it's clearly a common/medical term, NOT a proper noun
+    # We want to keep entities even if they are dictionary words (e.g. Apple, Amazon)
+    # BUT we want to filter out clear medical terms that spaCy mislabels as ORG/PRODUCT
     words = name_stripped.split()
-
-    # Single-word entity: filter only if it's a medical/scientific term
     if len(words) == 1:
+        # If it's a single word and it's lowercase in the text, it's likely a false positive
+        if name_stripped[0].islower():
+            return False
+        
+        # Check if it's a medical term mislabeled as ORG
         synsets = wn.synsets(name_stripped.lower())
         if synsets:
             for s in synsets:
                 defn = s.definition().lower()
                 medical_kws = ["disease", "condition", "disorder", "inflammation",
-                               "infection", "syndrome", "skin", "rash",
-                               "medicine", "therapy", "treatment", "tissue"]
+                               "infection", "syndrome", "tissue", "rash"]
                 if any(kw in defn for kw in medical_kws):
+                    # Only filter if it's NOT capitalized in a way that suggests a proper noun
                     return False
-        return True
-
-    # Multi-word: filter only if the combined phrase IS in WordNet
-    # (meaning it's a dictionary term, not a proper noun)
-    if len(words) >= 2:
-        combined = "_".join(w.lower() for w in words)
-        if wn.synsets(combined):
-            # It's a real dictionary term
-            return False
+    
+    # For multi-word ORGs, we generally trust them unless they are all lowercase
+    if all(w[0].islower() for w in words):
+        return False
 
     return True
 

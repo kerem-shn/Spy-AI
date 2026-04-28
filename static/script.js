@@ -14,7 +14,7 @@
     const resultsSection=$("results-section");
     const statTerms=$("stat-terms"),statEntities=$("stat-entities"),statEngine=$("stat-engine");
     const tabTerms=$("tab-terms"),tabEntities=$("tab-entities");
-    const termsView=$("terms-view"),entitiesContainer=$("entities-container"),liveFeed=$("live-feed");
+    const termsView=$("terms-view"),entitiesContainer=$("entities-container");
     const sourceTextView=$("source-text-view"),detailAnchor=$("detail-panel-anchor");
     const resultsLayout=$("results-layout");
     const themePicker=$("theme-picker"),accentPicker=$("accent-picker"),positionPicker=$("position-picker");
@@ -164,12 +164,12 @@
                 analysisData.terms[payload.lemma] = payload;
                 updateStats();
                 incrementalRender();
-                addToLiveFeed(payload);
                 break;
             case "entity":
                 analysisData.entities[payload.name] = payload.summary;
                 updateStats();
                 renderEntities(analysisData.entities);
+                incrementalRender();
                 break;
             case "done":
                 loadingBarFill.style.width="100%";
@@ -188,20 +188,8 @@
         statEngine.textContent = analysisData.stats.translation_engine || "Google Translate";
         sourceTextView.innerHTML = `<p>${analysisData.source_text.replace(/\n/g, "<br>")}</p>`;
         entitiesContainer.innerHTML = "";
-        liveFeed.innerHTML = "";
         switchTab("terms");
         resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-
-    function addToLiveFeed(term) {
-        const item = document.createElement("div");
-        item.className = "feed-item";
-        item.innerHTML = `
-            <span class="feed-item__lemma">${esc(term.lemma)}</span>
-            <span class="feed-item__trans">${esc(term.translations[0] || "...")}</span>
-        `;
-        item.onclick = () => showTermDetail(term.lemma);
-        liveFeed.prepend(item);
     }
 
     function updateStats() {
