@@ -121,7 +121,9 @@ class SpyAICache:
     def get(self, category, key):
         try:
             cursor = self._get_conn().cursor()
-            cursor.execute("SELECT value FROM cache WHERE category=? AND key=?", (category, key))
+            # FIX: Match the composite key stored in the DB
+            composite_key = f"{category}:{key}"
+            cursor.execute("SELECT value FROM cache WHERE key=?", (composite_key,))
             res = cursor.fetchone()
             return json.loads(res[0]) if res else None
         except: return None
@@ -131,8 +133,9 @@ class SpyAICache:
             try:
                 conn = self._get_conn()
                 cursor = conn.cursor()
+                composite_key = f"{category}:{key}"
                 cursor.execute("INSERT OR REPLACE INTO cache (key, value, category) VALUES (?, ?, ?)",
-                               (f"{category}:{key}", json.dumps(value), category))
+                               (composite_key, json.dumps(value), category))
                 conn.commit()
             except: pass
 
@@ -379,21 +382,30 @@ def get_context_aware_meanings(word: str, sentence: str, wn_pos=None, limit: int
     context_stems = _stem_tokens(sentence)
     scored_senses = []
 
+    # Scoring with Medical/Scientific Bias
+    # If the sentence contains medical keywords, boost medical senses
+    medical_context = any(kw in sentence.lower() for kw in 
+                         ["skin", "patient", "disease", "treatment", "medical", "clinical", "symptom", "rash", "pain"])
+
     for i, syn in enumerate(all_synsets):
-        # Base score from definition
-        signature = _stem_tokens(syn.definition())
-        # Add examples to signature
+        defn = syn.definition().lower()
+        signature = _stem_tokens(defn)
         for ex in syn.examples():
             signature.update(_stem_tokens(ex))
-        # Add hypernym definitions (broader context)
         for hyper in syn.hypernyms():
             signature.update(_stem_tokens(hyper.definition()))
 
         overlap = len(context_stems.intersection(signature))
-        # Frequency bias: Synsets are usually ordered by frequency in WordNet
-        # i=0 is most common. We add a decaying weight.
         freq_bias = 1.0 / (i + 1)
-        score = overlap + freq_bias
+        
+        # Medical Bias: prioritize senses whose definitions contain medical terms
+        med_bias = 0
+        if medical_context:
+            med_kws = ["disease", "disorder", "medical", "condition", "inflammation", "anatomy", "tissue", "body", "pathological"]
+            if any(kw in defn for kw in med_kws):
+                med_bias = 2.0 # Significant boost
+
+        score = overlap + freq_bias + med_bias
         scored_senses.append((score, syn))
 
     # Sort by score descending
@@ -410,39 +422,66 @@ def get_context_aware_meanings(word: str, sentence: str, wn_pos=None, limit: int
     return meanings
 
 
-def get_translations(word: str, translate_fn):
-    """Get translations for a term (no sentence translation)."""
-    translations = set()
+def get_contextual_translation(word: str, sentence: str, translate_fn):
+    """
+    Translates a word within its context sentence to ensure correct POS and sense.
+    Uses markers [[word]] to identify the target in the translated output.
+    """
+    cache_key = f"{word}:{sentence[:100]}"
+    cached = cache.get("context_trans", cache_key)
+    if cached: return cached
 
-    # 1. Translate the isolated word/compound
     try:
-        direct = translate_fn(word)
-        if direct:
-            translations.add(direct)
-    except Exception:
+        # Wrap the word in markers within the sentence
+        # Example: "The patient has a [[rash]] on his back."
+        marked_sentence = sentence.replace(word, f"[[{word}]]", 1)
+        if "[[" not in marked_sentence:
+            # Fallback if literal match failed (e.g. case difference)
+            pattern = re.compile(re.escape(word), re.IGNORECASE)
+            marked_sentence = pattern.sub(f"[[{word}]]", sentence, count=1)
+
+        tr_sentence = translate_fn(marked_sentence)
+        
+        # Extract the marked word from the translation
+        # Example: "Hastanın sırtında bir [[döküntü]] var."
+        match = re.search(r"\[\[(.*?)\]\]", tr_sentence)
+        if match:
+            result = match.group(1).strip().lower()
+            cache.set("context_trans", cache_key, result)
+            return result
+    except:
         pass
 
-    # 2. WordNet synonyms for alternatives
-    lookup = word.replace("-", "_") if "-" in word else word
-    try:
-        for syn in wn.synsets(lookup)[:3]:
-            for lemma in syn.lemmas()[:2]:
-                name = lemma.name().replace("_", " ")
-                if name.lower() != word.lower():
-                    try:
-                        alt = translate_fn(name)
-                        if alt:
-                            translations.add(alt)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    # Final fallback: translate isolated word
+    res = translate_fn(word).strip().lower()
+    cache.set("context_trans", cache_key, res)
+    return res
 
-    result = list(translations)[:4]
-    if not result:
-        result = ["Translation unavailable"]
 
-    return result
+def get_translations(word: str, sentence: str, translate_fn):
+    """Get high-quality translations using contextual disambiguation."""
+    translations = []
+    
+    # 1. Primary: Contextual translation (the most accurate)
+    primary = get_contextual_translation(word, sentence, translate_fn)
+    if primary:
+        translations.append(primary)
+
+    # 2. Secondary: WordNet Synonyms are often too noisy for TR, 
+    # so we only add the isolated translation if it differs
+    isolated = translate_fn(word).strip().lower()
+    if isolated and isolated not in translations:
+        translations.append(isolated)
+
+    # Dedup and limit
+    seen = set()
+    final = []
+    for t in translations:
+        if t not in seen and len(final) < 3:
+            final.append(t)
+            seen.add(t)
+
+    return final if final else ["Translation unavailable"]
 
 
 # ---------------------------------------------------------------------------
@@ -521,16 +560,19 @@ def get_entity_summary(name: str, label: str) -> dict:
     except Exception:
         pass
 
-    # 2. Wikipedia (Localized Fallback)
+    # 2. Wikipedia (Localized Fallback) - ONLY if primary failed and entity seems Turkish
     if not summary:
-        try:
-            wikipedia.set_lang("tr")
-            summary = wikipedia.summary(name, sentences=2)
-            source = "Wikipedia (TR)"
-        except Exception:
-            pass
-        finally:
-            wikipedia.set_lang("en")
+        # Check if name contains Turkish characters
+        is_turkish = any(c in name for c in "ıİğĞüÜşŞöÖçÇ")
+        if is_turkish:
+            try:
+                wikipedia.set_lang("tr")
+                summary = wikipedia.summary(name, sentences=2)
+                source = "Wikipedia (TR)"
+            except Exception:
+                pass
+            finally:
+                wikipedia.set_lang("en")
 
     # 3. NIH (National Institutes of Health) Fallback for medical terms
     if not summary and DDGS_AVAILABLE:
@@ -679,8 +721,9 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None):
     with ThreadPoolExecutor(max_workers=20) as executor:
         def process_term(item):
             word = item["lemma"]
-            translations = get_translations(word, translate_fn)
-            meanings_en = get_context_aware_meanings(word, item["sentence"], item["wn_pos"])
+            sentence = item["sentence"]
+            translations = get_translations(word, sentence, translate_fn)
+            meanings_en = get_context_aware_meanings(word, sentence, item["wn_pos"])
             meanings_tr = []
             for m in meanings_en:
                 try: tr_def = meaning_translate_fn(m["definition"])
@@ -691,7 +734,7 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None):
                 })
             return {
                 "lemma": word,
-                "context": item["sentence"],
+                "context": sentence,
                 "translations": translations,
                 "meanings_en": meanings_en,
                 "meanings_tr": meanings_tr,
