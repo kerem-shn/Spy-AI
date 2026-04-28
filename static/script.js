@@ -14,7 +14,7 @@
     const resultsSection=$("results-section");
     const statTerms=$("stat-terms"),statEntities=$("stat-entities"),statEngine=$("stat-engine");
     const tabTerms=$("tab-terms"),tabEntities=$("tab-entities");
-    const termsView=$("terms-view"),entitiesContainer=$("entities-container");
+    const termsView=$("terms-view"),entitiesContainer=$("entities-container"),liveFeed=$("live-feed");
     const sourceTextView=$("source-text-view"),detailAnchor=$("detail-panel-anchor");
     const resultsLayout=$("results-layout");
     const themePicker=$("theme-picker"),accentPicker=$("accent-picker"),positionPicker=$("position-picker");
@@ -100,36 +100,119 @@
     function fmtSize(b){if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";return(b/1048576).toFixed(1)+" MB"}
 
     // --- Analysis ---
+    // --- Analysis (Streaming) ---
     async function runAnalysis(){
         if(!selectedFile){showToast("Please select a file.","error");return}
         uploadSection.style.display="none";loadingSection.hidden=false;resultsSection.hidden=true;
-        animateLoading();
+        loadingStatus.textContent="Connecting...";
+        loadingBarFill.style.width="5%";
+
         const fd=new FormData();fd.append("file",selectedFile);fd.append("direction",currentDirection);
         const key=deeplKeyInput.value.trim();if(key)fd.append("deepl_key",key);
-        try{
-            const res=await fetch("/upload",{method:"POST",body:fd});
-            const data=await res.json();
-            if(!res.ok||data.error)throw new Error(data.error||"Server error");
-            analysisData=data;renderResults(data);
-        }catch(err){showToast(err.message||"Analysis failed.","error");uploadSection.style.display=""}
-        finally{loadingSection.hidden=true}
-    }
-    function animateLoading(){
-        const stages=[{t:"Extracting text...",p:15},{t:"Running NLP analysis...",p:35},{t:"Identifying terms...",p:55},{t:"Translating...",p:75},{t:"Researching entities...",p:90}];
-        let i=0;loadingBarFill.style.width="5%";
-        const iv=setInterval(()=>{if(i>=stages.length||loadingSection.hidden){clearInterval(iv);return}loadingStatus.textContent=stages[i].t;loadingBarFill.style.width=stages[i].p+"%";i++},1800);
+
+        analysisData = { source_text: "", terms: {}, entities: {}, stats: {} };
+
+        try {
+            const response = await fetch("/upload", { method: "POST", body: fd });
+            if (!response.ok) throw new Error("Server error");
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n\n");
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        const raw = line.substring(6);
+                        try {
+                            const { type, payload } = JSON.parse(raw);
+                            handleStreamEvent(type, payload);
+                        } catch (e) { console.warn("JSON Parse Error", e); }
+                    }
+                }
+            }
+        } catch (err) {
+            showToast(err.message || "Analysis failed.", "error");
+            uploadSection.style.display = "";
+        } finally {
+            loadingSection.hidden = true;
+        }
     }
 
-    // === RENDER ===
-    function renderResults(data){
-        statTerms.textContent=data.stats.total_terms;
-        statEntities.textContent=data.stats.total_entities;
-        statEngine.textContent=data.stats.translation_engine||"Google Translate";
-        renderSourceText(data.source_text, data.terms, data.entities);
-        renderEntities(data.entities);
-        uploadSection.style.display="";resultsSection.hidden=false;
+    function handleStreamEvent(type, payload) {
+        switch (type) {
+            case "status":
+                loadingStatus.textContent = payload;
+                if(payload.includes("Processing terms")) loadingBarFill.style.width="40%";
+                if(payload.includes("Researching entities")) loadingBarFill.style.width="75%";
+                break;
+            case "meta":
+                analysisData.source_text = payload.source_text;
+                analysisData.stats.total_terms = payload.total_terms;
+                analysisData.stats.total_entities = payload.total_entities;
+                analysisData.stats.translation_engine = payload.engine;
+                initResultsUI();
+                break;
+            case "term":
+                analysisData.terms[payload.lemma] = payload;
+                updateStats();
+                incrementalRender();
+                addToLiveFeed(payload);
+                break;
+            case "entity":
+                analysisData.entities[payload.name] = payload.summary;
+                updateStats();
+                renderEntities(analysisData.entities);
+                break;
+            case "done":
+                loadingBarFill.style.width="100%";
+                showToast("Analysis complete!", "success");
+                break;
+            case "error":
+                showToast(payload, "error");
+                break;
+        }
+    }
+
+    function initResultsUI() {
+        resultsSection.hidden = false;
+        statTerms.textContent = analysisData.stats.total_terms;
+        statEntities.textContent = analysisData.stats.total_entities;
+        statEngine.textContent = analysisData.stats.translation_engine || "Google Translate";
+        sourceTextView.innerHTML = `<p>${analysisData.source_text.replace(/\n/g, "<br>")}</p>`;
+        entitiesContainer.innerHTML = "";
+        liveFeed.innerHTML = "";
         switchTab("terms");
-        resultsSection.scrollIntoView({behavior:"smooth",block:"start"});
+        resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function addToLiveFeed(term) {
+        const item = document.createElement("div");
+        item.className = "feed-item";
+        item.innerHTML = `
+            <span class="feed-item__lemma">${esc(term.lemma)}</span>
+            <span class="feed-item__trans">${esc(term.translations[0] || "...")}</span>
+        `;
+        item.onclick = () => showTermDetail(term.lemma);
+        liveFeed.prepend(item);
+    }
+
+    function updateStats() {
+        const termsFound = Object.keys(analysisData.terms).length;
+        const entsFound = Object.keys(analysisData.entities).length;
+        statTerms.textContent = `${termsFound} / ${analysisData.stats.total_terms}`;
+        statEntities.textContent = `${entsFound} / ${analysisData.stats.total_entities}`;
+    }
+
+    function incrementalRender() {
+        renderSourceText(analysisData.source_text, analysisData.terms, analysisData.entities);
     }
 
     // === SOURCE TEXT with paragraph preservation ===
@@ -228,7 +311,7 @@
         const chips=(info.translations||[]).map((t,i)=>`<span class="translation-chip ${i===0?"translation-chip--primary":""}">${esc(t)}</span>`).join("");
         const meanEN=(info.meanings_en||[]).map(m=>`<li class="meaning-item"><span class="meaning-badge ${m.is_primary?"meaning-badge--primary":"meaning-badge--alt"}">${m.is_primary?"context":"alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
         const meanTR=(info.meanings_tr||[]).map(m=>`<li class="meaning-item"><span class="meaning-badge ${m.is_primary?"meaning-badge--primary":"meaning-badge--alt"}">${m.is_primary?"context":"alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
-        const url=`https://www.google.com/search?q=${encodeURIComponent(lemma+" meaning definition")}`;
+        const url=`https://www.google.com/search?q=${encodeURIComponent(lemma+" definition")}`;
 
         detailAnchor.innerHTML=`
         <div class="detail-panel">

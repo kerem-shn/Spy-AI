@@ -7,7 +7,11 @@ translations, meanings, and entity summaries.
 import os
 import re
 import logging
-from flask import Flask, render_template, request, jsonify
+import sqlite3
+import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 
 import spacy
 from deep_translator import GoogleTranslator
@@ -22,6 +26,7 @@ import nltk
 from nltk.corpus import wordnet as wn
 from nltk.wsd import lesk
 from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
 
 # Optional imports for file parsing
 try:
@@ -49,8 +54,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("SpyAI")
 
 for resource in ["wordnet", "omw-1.4", "punkt", "punkt_tab",
-                  "averaged_perceptron_tagger", "averaged_perceptron_tagger_eng"]:
+                  "averaged_perceptron_tagger", "averaged_perceptron_tagger_eng", "brown"]:
     nltk.download(resource, quiet=True)
+
+from nltk.corpus import brown
+logger.info("Initializing COMMON_WORDS filter...")
+try:
+    _brown_words = [w.lower() for w in brown.words() if w.isalpha()]
+    _freq = nltk.FreqDist(_brown_words)
+    # The Top 5000 most common English words to filter out
+    COMMON_WORDS = set([w for w, f in _freq.most_common(5000)])
+    logger.info(f"Filter active: {len(COMMON_WORDS)} common words excluded.")
+except Exception as e:
+    logger.warning(f"Brown filter init failed: {e}")
+    COMMON_WORDS = set()
 
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -74,6 +91,52 @@ ENTITY_LABEL_DISPLAY = {
     "WORK_OF_ART": "Work of Art",
     "NORP": "Group/Nationality",
 }
+
+class SpyAICache:
+    _lock = threading.Lock()
+
+    def __init__(self, db_path="spy_ai_cache.db"):
+        self.db_path = db_path
+        self._local = threading.local()
+        self._init_db()
+
+    def _get_conn(self):
+        if not hasattr(self._local, "conn"):
+            self._local.conn = sqlite3.connect(self.db_path, timeout=30)
+        return self._local.conn
+
+    def _init_db(self):
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cache (
+                    key TEXT PRIMARY KEY, value TEXT, category TEXT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            conn.close()
+
+    def get(self, category, key):
+        try:
+            cursor = self._get_conn().cursor()
+            cursor.execute("SELECT value FROM cache WHERE category=? AND key=?", (category, key))
+            res = cursor.fetchone()
+            return json.loads(res[0]) if res else None
+        except: return None
+
+    def set(self, category, key, value):
+        with self._lock:
+            try:
+                conn = self._get_conn()
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR REPLACE INTO cache (key, value, category) VALUES (?, ?, ?)",
+                               (f"{category}:{key}", json.dumps(value), category))
+                conn.commit()
+            except: pass
+
+cache = SpyAICache()
 
 # ---------------------------------------------------------------------------
 # Helpers — File Parsing
@@ -155,10 +218,10 @@ def build_translator(direction: str, deepl_key: str | None = None):
 # ---------------------------------------------------------------------------
 
 def is_term(token, entity_spans: set) -> bool:
-    """Single-word noun term detection."""
-    if token.pos_ != "NOUN":
+    """Single-word term detection (nouns and adjectives)."""
+    if token.pos_ not in ("NOUN", "ADJ"):
         return False
-    if len(token.text) < 5:
+    if len(token.text) < 4:
         return False
     if token.is_stop or token.is_punct or token.is_space or token.like_num:
         return False
@@ -166,8 +229,14 @@ def is_term(token, entity_spans: set) -> bool:
         return False
     if token.i in entity_spans:
         return False
-    lemma = token.lemma_.lower()
-    if not wn.synsets(lemma):
+
+    # RESEARCH ENGINE OVERHAUL: Filter out the Top 5000 most common English words
+    lemma = resolve_lemma(token)
+    if lemma in COMMON_WORDS or token.text.lower() in COMMON_WORDS:
+        return False
+
+    wn_pos = spacy_pos_to_wn(token.pos_)
+    if not wn.synsets(lemma, pos=wn_pos):
         return False
     return True
 
@@ -175,12 +244,28 @@ def is_term(token, entity_spans: set) -> bool:
 def extract_multiword_terms(doc, entity_spans: set) -> list:
     """
     Extract multi-word terms using spaCy noun chunks, hyphenated compounds,
-    and quoted terms (e.g. 'mother patch', 'herald patch').
+    quoted terms, and WordNet-verified NOUN+NOUN or ADJ+NOUN compounds.
     """
     terms = []
     seen = set()
 
-    # 1. spaCy noun chunks (multi-word noun phrases)
+    # 1. Quoted terms (highest priority) - Use only double quotes to avoid contractions
+    quoted = re.findall(r'[“”"](\w+(?:\s+\w+)*)[“”"]', doc.text)
+    for q in quoted:
+        if len(q) >= 3:
+            # Find the sentence containing this text
+            match = re.search(re.escape(q), doc.text)
+            sentence = ""
+            if match:
+                start = match.start()
+                # Find sentence boundary around start
+                s_start = doc.text.rfind(".", 0, start) + 1
+                s_end = doc.text.find(".", start) + 1
+                sentence = doc.text[s_start:s_end].strip()
+            terms.append({"text": q, "sentence": sentence})
+            seen.add(q.lower())
+
+    # 2. spaCy noun chunks (multi-word noun phrases)
     for chunk in doc.noun_chunks:
         # Skip chunks that are single common words or overlap entities
         tokens = [t for t in chunk if not t.is_stop and not t.is_punct
@@ -190,6 +275,19 @@ def extract_multiword_terms(doc, entity_spans: set) -> list:
         # Skip if any token overlaps with named entities
         if any(t.i in entity_spans for t in tokens):
             continue
+        
+        # Stricter research-engine check: must end in NOUN or PROPN
+        if tokens[-1].pos_ not in ("NOUN", "PROPN"):
+            continue
+
+        # Limit length to avoid long noisy phrases like "skin condition experience itchiness"
+        # Most valid multi-word terms are 2-3 words.
+        if len(tokens) > 3:
+            # Only keep if it's a valid WordNet compound
+            full_text = "_".join(t.text.lower() for t in tokens)
+            if not wn.synsets(full_text):
+                continue
+
         text = " ".join(t.text for t in tokens).strip()
         if len(text) < 5 or text.lower() in seen:
             continue
@@ -197,7 +295,7 @@ def extract_multiword_terms(doc, entity_spans: set) -> list:
         sentence = chunk.sent.text.strip() if chunk.sent else ""
         terms.append({"text": text, "sentence": sentence})
 
-    # 2. Hyphenated compounds
+    # 3. Hyphenated compounds
     hyphenated = re.findall(r'\b([a-zA-Z]+-[a-zA-Z]+(?:-[a-zA-Z]+)*)\b', doc.text)
     for h in set(hyphenated):
         if len(h) > 5 and h.lower() not in seen:
@@ -207,40 +305,11 @@ def extract_multiword_terms(doc, entity_spans: set) -> list:
                     terms.append({"text": h, "sentence": sent.text.strip()})
                     break
 
-    # 3. Quoted terms — detect patterns like 'mother' patch, 'herald' patch
-    # or full quoted phrases like 'herald patch'
-    quoted = re.findall(r"['‘’“”\"](\w+(?:\s+\w+)*)['‘’“”\"]", doc.text)
-    for q in quoted:
-        q_clean = q.strip()
-        if len(q_clean) < 3 or q_clean.lower() in seen:
-            continue
-        # Try to find this quoted word + the next noun as a compound
-        # e.g., 'mother' patch -> "mother patch"
-        for sent in doc.sents:
-            if q_clean in sent.text:
-                # Look for pattern: 'quoted' + following_noun
-                pattern = re.search(
-                    r"['‘’“”\"]" + re.escape(q_clean) + r"['‘’“”\"]\s*(\w+)",
-                    sent.text
-                )
-                if pattern:
-                    following = pattern.group(1)
-                    compound = f"{q_clean} {following}"
-                    if compound.lower() not in seen:
-                        seen.add(compound.lower())
-                        terms.append({"text": compound, "sentence": sent.text.strip()})
-                # Also add the quoted word itself if it's a noun
-                if q_clean.lower() not in seen and len(q_clean) >= 5:
-                    if wn.synsets(q_clean.lower()):
-                        seen.add(q_clean.lower())
-                        terms.append({"text": q_clean, "sentence": sent.text.strip()})
-                break
-
     return terms
 
 
 def get_sentence_for_token(token) -> str:
-    """Return the sentence string that contains this token."""
+    """Safely get the text of the sentence containing a token."""
     return token.sent.text.strip() if token.sent else ""
 
 
@@ -248,69 +317,96 @@ def get_sentence_for_token(token) -> str:
 # Helpers — Better WSD for Compounds
 # ---------------------------------------------------------------------------
 
-def get_context_aware_meanings(word: str, sentence: str, limit: int = 3):
+# ---------------------------------------------------------------------------
+# Helpers — POS Mapping & Stemmer
+# ---------------------------------------------------------------------------
+
+_stemmer = PorterStemmer()
+
+
+def spacy_pos_to_wn(pos_tag: str):
+    """Map a spaCy POS tag to the equivalent WordNet POS constant."""
+    return {"NOUN": wn.NOUN, "VERB": wn.VERB, "ADJ": wn.ADJ, "ADV": wn.ADV}.get(pos_tag)
+
+
+def resolve_lemma(token) -> str:
+    """Return the best lemma for a token.
+    If spaCy's lemma has fewer WordNet synsets than the original surface form,
+    prefer the surface form (e.g. 'sole' instead of 'sol')."""
+    spacy_lemma = token.lemma_.lower()
+    surface_form = token.text.lower()
+    if spacy_lemma == surface_form:
+        return spacy_lemma
+
+    wn_pos = spacy_pos_to_wn(token.pos_)
+    lemma_synsets = wn.synsets(spacy_lemma, pos=wn_pos)
+    surface_synsets = wn.synsets(surface_form, pos=wn_pos)
+
+    if len(surface_synsets) > len(lemma_synsets):
+        return surface_form
+    return spacy_lemma
+
+
+def _stem_tokens(text: str) -> set:
+    """Tokenize and stem a string, returning a set of stems."""
+    try:
+        tokens = word_tokenize(text.lower())
+    except Exception:
+        tokens = text.lower().split()
+    return {_stemmer.stem(t) for t in tokens if t.isalnum()}
+
+
+def get_context_aware_meanings(word: str, sentence: str, wn_pos=None, limit: int = 3):
     """
-    Use NLTK Lesk for WSD. For hyphenated compounds, try the full term
-    first, then fall back to the head word (last component).
+    Enhanced Lesk Algorithm:
+    Disambiguates word senses by comparing stems of the context sentence
+    against stems of definitions, examples, and hypernym definitions.
+    Applies frequency bias for more accurate results.
     """
+    cache_key = f"{word}:{sentence[:100]}:{wn_pos}"
+    cached = cache.get("term_meanings", cache_key)
+    if cached: return cached
+
     meanings = []
-    lookup_word = word
+    lookup_word = word.replace("-", "_") if "-" in word else word
+    all_synsets = wn.synsets(lookup_word, pos=wn_pos)
+    if not all_synsets:
+        all_synsets = wn.synsets(lookup_word)
 
-    # For hyphenated compounds, try full compound first
-    if "-" in word:
-        compound_underscore = word.replace("-", "_")
-        if wn.synsets(compound_underscore):
-            lookup_word = compound_underscore
-        else:
-            # Use the head word (last component in English compounds)
-            parts = word.split("-")
-            # Try last part first, then first part
-            for part in reversed(parts):
-                if len(part) > 3 and wn.synsets(part):
-                    lookup_word = part
-                    break
+    if not all_synsets:
+        return [{"definition": "No definition available.", "is_primary": True}]
 
-    try:
-        tokens = word_tokenize(sentence)
-    except Exception:
-        tokens = sentence.split()
+    context_stems = _stem_tokens(sentence)
+    scored_senses = []
 
-    # Lesk disambiguation
-    best_sense = None
-    try:
-        best_sense = lesk(tokens, lookup_word, "n")
-        if not best_sense:
-            best_sense = lesk(tokens, lookup_word, "v")
-        if not best_sense:
-            best_sense = lesk(tokens, lookup_word, "a")  # adjective
-        if not best_sense:
-            best_sense = lesk(tokens, lookup_word)
-    except Exception:
-        pass
+    for i, syn in enumerate(all_synsets):
+        # Base score from definition
+        signature = _stem_tokens(syn.definition())
+        # Add examples to signature
+        for ex in syn.examples():
+            signature.update(_stem_tokens(ex))
+        # Add hypernym definitions (broader context)
+        for hyper in syn.hypernyms():
+            signature.update(_stem_tokens(hyper.definition()))
 
-    all_synsets = wn.synsets(lookup_word)
+        overlap = len(context_stems.intersection(signature))
+        # Frequency bias: Synsets are usually ordered by frequency in WordNet
+        # i=0 is most common. We add a decaying weight.
+        freq_bias = 1.0 / (i + 1)
+        score = overlap + freq_bias
+        scored_senses.append((score, syn))
 
-    if best_sense:
+    # Sort by score descending
+    scored_senses.sort(key=lambda x: x[0], reverse=True)
+    best_syns = [s[1] for s in scored_senses]
+
+    for i, syn in enumerate(best_syns[:limit]):
         meanings.append({
-            "definition": best_sense.definition(),
-            "is_primary": True,
+            "definition": syn.definition(),
+            "is_primary": i == 0,
         })
-        for syn in all_synsets:
-            if syn != best_sense and len(meanings) < limit:
-                meanings.append({
-                    "definition": syn.definition(),
-                    "is_primary": False,
-                })
-    else:
-        for syn in all_synsets[:limit]:
-            meanings.append({
-                "definition": syn.definition(),
-                "is_primary": len(meanings) == 0,
-            })
 
-    if not meanings:
-        meanings.append({"definition": "No definition available.", "is_primary": True})
-
+    cache.set("term_meanings", cache_key, meanings)
     return meanings
 
 
@@ -426,164 +522,197 @@ def get_entity_summary(name: str, label: str) -> dict:
     except Exception:
         pass
 
-    # 2. Try Turkish Wikipedia (for Turkish names like "Koru Tıp Merkezi")
+    # 2. Wikipedia (Localized Fallback)
     if not summary:
         try:
             wikipedia.set_lang("tr")
-            summary = wikipedia.summary(name, sentences=3)
+            summary = wikipedia.summary(name, sentences=2)
             source = "Wikipedia (TR)"
-        except wikipedia.exceptions.DisambiguationError as e:
-            if e.options:
-                try:
-                    summary = wikipedia.summary(e.options[0], sentences=3)
-                    source = "Wikipedia (TR)"
-                except Exception:
-                    pass
         except Exception:
             pass
         finally:
             wikipedia.set_lang("en")
 
-    # 3. Fallback: DuckDuckGo with multiple query strategies
+    # 3. NIH (National Institutes of Health) Fallback for medical terms
     if not summary and DDGS_AVAILABLE:
-        queries = [
-            f'"{name}"',  # exact match
-            f"{name} {ENTITY_LABEL_DISPLAY.get(label, '')}".strip(),
-            name,
-        ]
-        for query in queries:
-            try:
-                with DDGS() as ddgs:
-                    results = list(ddgs.text(query, max_results=5))
+        try:
+            with DDGS() as ddgs:
+                # Targeted search on NIH site
+                results = list(ddgs.text(f"site:nih.gov {name}", max_results=3))
+                if results:
+                    snippets = [r.get("body", "") for r in results if r.get("body")]
+                    if snippets:
+                        summary = " ".join(snippets[:2])
+                        source = "NIH (National Institutes of Health)"
+        except Exception:
+            pass
+
+    # 4. Fallback: DuckDuckGo (force English region)
+    if not summary and DDGS_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                results = list(ddgs.text(f'"{name}"', region='en-us', max_results=3))
+            if results:
+                snippets = [r.get("body", "") for r in results if r.get("body")]
+                if snippets:
+                    summary = " ".join(snippets[:3])
+                    source = "Web Search"
+        except Exception:
+            pass
+
+    # 5. Fallback: WordNet Dictionary
+    if not summary:
+        try:
+            lookup = name.lower().replace(" ", "_")
+            synsets = wn.synsets(lookup)
+            if synsets:
+                summary = synsets[0].definition()
+                source = "WordNet Dictionary"
+        except Exception:
+            pass
+
+    # 6. Final fallback: Deep Browser Research
+    if not summary and DDGS_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                results = list(ddgs.text(f'{name} official definition explanation', max_results=5))
                 if results:
                     snippets = [r.get("body", "") for r in results if r.get("body")]
                     if snippets:
                         summary = " ".join(snippets[:3])
-                        source = "Web Search"
-                        break
-            except Exception as e:
-                logger.warning(f"DuckDuckGo search failed for '{name}': {e}")
-                continue
+                        source = "Deep Research"
+        except Exception:
+            pass
 
     if not summary:
         summary = "No information available."
         source = "N/A"
 
-    return {
+    result = {
         "label": label,
         "label_display": ENTITY_LABEL_DISPLAY.get(label, label),
         "summary": summary,
         "source": source,
     }
+    cache.set("entity", name, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
-# Main Analysis Pipeline
+# Streaming Analysis Pipeline
 # ---------------------------------------------------------------------------
 
-def analyze_text(text: str, direction: str, deepl_key: str | None = None) -> dict:
-    """Full analysis pipeline: terms + entities."""
+def stream_analysis(text: str, direction: str, deepl_key: str | None = None):
+    def send(event_type, payload):
+        return f"data: {json.dumps({'type': event_type, 'payload': payload})}\n\n"
+    
+    # Buffer-busting: send 4KB of whitespace in an SSE comment to force flushing through proxies
+    yield f": {' ' * 4096}\n\n"
+
     if not nlp:
-        return {"error": "spaCy model not loaded. Please install en_core_web_sm."}
+        yield send("error", "spaCy model not loaded. Please install en_core_web_sm.")
+        return
+
+    logger.info("Starting streaming analysis...")
+    yield send("status", "Starting analysis...")
 
     translate_fn, engine = build_translator(direction, deepl_key)
-    # Build a meaning translator (always EN->TR for meanings)
     meaning_translate_fn, _ = build_translator("en-tr", deepl_key)
     doc = nlp(text)
 
-    # Build set of token indices that belong to entities (to avoid overlap)
     entity_spans = set()
     for ent in doc.ents:
         for i in range(ent.start, ent.end):
             entity_spans.add(i)
 
-    # --- Term extraction (single-word nouns) ---
-    terms = {}
-    term_originals = {}  # lemma -> set of original surface forms
+    yield send("status", "Extracting terms...")
+    
+    # RESEARCH ENGINE: Targeted term items
+    term_items = []
+    
     for token in doc:
         if is_term(token, entity_spans):
-            lemma = token.lemma_.lower()
-            # Track original word forms for highlighting
-            if lemma not in term_originals:
-                term_originals[lemma] = set()
-            term_originals[lemma].add(token.text)
-            if lemma not in terms:
-                sentence = get_sentence_for_token(token)
-                translations = get_translations(lemma, translate_fn)
-                meanings_en = get_context_aware_meanings(lemma, sentence)
-                meanings_tr = []
-                for m in meanings_en:
-                    try:
-                        tr_def = meaning_translate_fn(m["definition"])
-                    except Exception:
-                        tr_def = m["definition"]
-                    meanings_tr.append({
-                        "definition": tr_def if tr_def else m["definition"],
-                        "is_primary": m["is_primary"],
-                    })
-                terms[lemma] = {
-                    "context": sentence,
-                    "translations": translations,
-                    "meanings_en": meanings_en,
-                    "meanings_tr": meanings_tr,
-                    "originals": [],
-                }
-    # Attach original forms
-    for lemma, forms in term_originals.items():
-        if lemma in terms:
-            terms[lemma]["originals"] = list(forms)
+            lemma = resolve_lemma(token)
+            term_items.append({
+                "lemma": lemma,
+                "sentence": get_sentence_for_token(token),
+                "original": token.text,
+                "wn_pos": spacy_pos_to_wn(token.pos_)
+            })
 
-    # --- Multi-word terms (noun chunks, hyphenated, quoted) ---
     multiword = extract_multiword_terms(doc, entity_spans)
     for comp in multiword:
-        word = comp["text"].lower()
-        if word not in terms:
-            sentence = comp["sentence"]
+        term_items.append({
+            "lemma": comp["text"].lower(),
+            "sentence": comp["sentence"],
+            "original": comp["text"],
+            "wn_pos": None # Multi-word lookup usually defaults to None
+        })
+
+    # Deduplicate by lemma
+    seen_lemmas = {}
+    for item in term_items:
+        l = item["lemma"]
+        if l not in seen_lemmas:
+            seen_lemmas[l] = item
+            seen_lemmas[l]["originals"] = {item["original"]}
+        else:
+            seen_lemmas[l]["originals"].add(item["original"])
+    
+    final_terms = list(seen_lemmas.values())
+
+    entities_to_research = []
+    for ent in doc.ents:
+        if ent.label_ in ENTITY_LABELS:
+            name = ent.text.strip()
+            if len(name) >= 2 and is_valid_entity(name, ent.label_):
+                if not any(e["name"] == name for e in entities_to_research):
+                    entities_to_research.append({"name": name, "label": ent.label_})
+
+    yield send("meta", {
+        "source_text": text,
+        "total_terms": len(final_terms),
+        "total_entities": len(entities_to_research),
+        "engine": engine
+    })
+
+    yield send("status", "Processing terms...")
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        def process_term(item):
+            word = item["lemma"]
             translations = get_translations(word, translate_fn)
-            meanings_en = get_context_aware_meanings(word, sentence)
+            meanings_en = get_context_aware_meanings(word, item["sentence"], item["wn_pos"])
             meanings_tr = []
             for m in meanings_en:
-                try:
-                    tr_def = meaning_translate_fn(m["definition"])
-                except Exception:
-                    tr_def = m["definition"]
+                try: tr_def = meaning_translate_fn(m["definition"])
+                except Exception: tr_def = m["definition"]
                 meanings_tr.append({
                     "definition": tr_def if tr_def else m["definition"],
                     "is_primary": m["is_primary"],
                 })
-            terms[word] = {
-                "context": sentence,
+            return {
+                "lemma": word,
+                "context": item["sentence"],
                 "translations": translations,
                 "meanings_en": meanings_en,
                 "meanings_tr": meanings_tr,
-                "originals": [comp["text"]],
+                "originals": list(item["originals"])
             }
+        
+        futures = [executor.submit(process_term, item) for item in final_terms]
+        for future in futures:
+            yield send("term", future.result())
 
-    # --- Entity extraction with false-positive filtering ---
-    entities = {}
-    for ent in doc.ents:
-        if ent.label_ in ENTITY_LABELS:
-            name = ent.text.strip()
-            if len(name) < 2 or name in entities:
-                continue
-            # Filter false positives
-            if not is_valid_entity(name, ent.label_):
-                logger.info(f"Filtered false-positive entity: '{name}' ({ent.label_})")
-                continue
-            entities[name] = get_entity_summary(name, ent.label_)
+    yield send("status", "Researching entities...")
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        def process_ent(ent):
+            return {"name": ent["name"], "summary": get_entity_summary(ent["name"], ent["label"])}
+        
+        futures = [executor.submit(process_ent, ent) for ent in entities_to_research]
+        for future in futures:
+            yield send("entity", future.result())
 
-    terms = dict(sorted(terms.items()))
-
-    return {
-        "source_text": text,
-        "terms": terms,
-        "entities": entities,
-        "stats": {
-            "total_terms": len(terms),
-            "total_entities": len(entities),
-            "translation_engine": engine,
-        },
-    }
+    yield send("done", "Analysis complete.")
 
 
 # ---------------------------------------------------------------------------
@@ -621,13 +750,15 @@ def upload():
     if not text:
         return jsonify({"error": "The uploaded file appears to be empty."}), 400
 
-    try:
-        result = analyze_text(text, direction, deepl_key)
-    except Exception as e:
-        logger.error(f"Analysis error: {e}")
-        return jsonify({"error": "An error occurred during analysis. Please try again."}), 500
-
-    return jsonify(result)
+    return Response(
+        stream_with_context(stream_analysis(text, direction, deepl_key)),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive'
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
