@@ -27,6 +27,14 @@
 </head>
 
 <body>
+    <svg style="position:absolute;width:0;height:0" aria-hidden="true">
+        <defs>
+            <linearGradient id="score-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="var(--accent-cyan, #00d4ff)" />
+                <stop offset="100%" stop-color="var(--accent-purple, #7c3aed)" />
+            </linearGradient>
+        </defs>
+    </svg>
     <div class="bg-animation" aria-hidden="true">
         <div class="bg-orb bg-orb--1"></div>
         <div class="bg-orb bg-orb--2"></div>
@@ -58,14 +66,23 @@
                     <p class="header__tagline">Your Translation Research Intelligence</p>
                 </div>
             </div>
-            <button class="btn btn--ghost" id="settings-toggle" type="button">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="3" />
-                    <path
-                        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-                Settings
-            </button>
+            <div class="header__actions">
+                <button class="btn btn--primary" id="exercise-toggle" type="button">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 11l3 3L22 4" />
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                    Exercise
+                </button>
+                <button class="btn btn--ghost" id="settings-toggle" type="button">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                    Settings
+                </button>
+            </div>
         </div>
     </header>
 
@@ -242,6 +259,77 @@
                 </div>
             </div>
             <div class="results-grid" id="entities-container" hidden></div>
+        </section>
+
+        <!-- EXERCISE: Test Selection -->
+        <section class="exercise-section" id="exercise-select" hidden>
+            <div class="exercise-header">
+                <button class="btn btn--ghost" id="exercise-back-home" type="button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                    Back to Research
+                </button>
+                <h2 class="exercise-header__title">Translation Exercises</h2>
+                <p class="exercise-header__subtitle">Select a test below and click Start to begin</p>
+            </div>
+            <div class="exercise-grid" id="exercise-grid">
+                <!-- Test cards will be injected by JS -->
+            </div>
+        </section>
+
+        <!-- EXERCISE: Quiz View -->
+        <section class="exercise-section" id="exercise-quiz" hidden>
+            <div class="quiz-top-bar">
+                <button class="btn btn--ghost btn--sm" id="quiz-back-select" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                    Back
+                </button>
+                <span class="quiz-top-bar__title" id="quiz-title">Test</span>
+                <span class="quiz-top-bar__progress" id="quiz-progress-label">1 / 5</span>
+            </div>
+            <div class="quiz-progress">
+                <div class="quiz-progress__fill" id="quiz-progress-fill"></div>
+            </div>
+            <div class="quiz-question-card" id="quiz-question-card">
+                <div class="quiz-question-card__type" id="quiz-q-type">MULTIPLE CHOICE</div>
+                <div class="quiz-question-card__text" id="quiz-q-text"></div>
+                <div class="quiz-options" id="quiz-options"></div>
+                <div class="quiz-actions">
+                    <button class="btn btn--primary" id="quiz-next-btn" type="button">Next</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- EXERCISE: Results View -->
+        <section class="exercise-section" id="exercise-results" hidden>
+            <div class="results-header">
+                <h2 class="results-header__title">Test Complete!</h2>
+            </div>
+            <div class="results-score-card" id="results-score-card">
+                <div class="results-score-ring">
+                    <svg viewBox="0 0 120 120" class="results-score-svg">
+                        <circle cx="60" cy="60" r="52" class="results-score-bg" />
+                        <circle cx="60" cy="60" r="52" class="results-score-fg" id="results-score-circle" />
+                    </svg>
+                    <span class="results-score-pct" id="results-score-pct">0%</span>
+                </div>
+                <div class="results-score-info">
+                    <div class="results-score-label">Your Score</div>
+                    <div class="results-score-detail" id="results-score-detail">0 of 5 correct</div>
+                </div>
+            </div>
+            <div class="results-review" id="results-review">
+                <!-- Answer review cards injected by JS -->
+            </div>
+            <div class="results-actions">
+                <button class="btn btn--primary" id="results-back-tests" type="button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                    Back to Tests
+                </button>
+                <button class="btn btn--ghost" id="results-retry" type="button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    Retry
+                </button>
+            </div>
         </section>
     </main>
 

@@ -431,5 +431,354 @@
     function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
     function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
 
+    // ══════════════════════════════════════════════════════════════
+    // EXERCISE MODULE
+    // ══════════════════════════════════════════════════════════════
+
+    const QUIZ_DATA = [
+        {
+            id: "dermatology-translation-1",
+            title: "Pityriasis Rosea — Translation Exercise",
+            description: "Test your knowledge of dermatological terminology translation. Covers key terms from the Pityriasis Rosea source text including Christmas tree rash, herald/mother/daughter patches, and translation problem types.",
+            icon: "🩺",
+            questionCount: 5,
+            questions: [
+                {
+                    type: "multiple-select",
+                    text: "How can <strong>\"Christmas Tree Rash\"</strong> be translated in this particular text?<br><em>(You may select more than one option)</em>",
+                    options: [
+                        "Gül Hastalığı",
+                        "Madalyon Hastalığı",
+                        "Noel Ağacı Döküntüsü",
+                        "Yılbaşı Ağacı Döküntüsü"
+                    ],
+                    correct: [0, 1]
+                },
+                {
+                    type: "multiple-choice",
+                    text: "\"The first stage will cause a single, large '<strong>mother</strong>' or '<strong>herald</strong>' patch to appear.\"<br>Considering the target audience, which of the following is the most appropriate translation of this sentence?",
+                    options: [
+                        "İlk etapta herald veya primer de denilen, büyük bir tane döküntü oluşur.",
+                        "İlk aşamada anne veya müjdeci plak da denilen büyük, tek bir döküntü görülür.",
+                        "İlk evrede birincil lezyon veya haberci plak da denilen büyük, tek bir döküntü ortaya çıkar.",
+                        "İlk evrede primer veya haberci plak da denilen büyük, tek bir döküntü ortaya çıkar."
+                    ],
+                    correct: [2]
+                },
+                {
+                    type: "multiple-choice",
+                    text: "\"The second stage will include the formation of '<strong>daughter</strong>' patches.\"<br>Which translation problem does the word <strong>\"daughter\"</strong> in this sentence relate to?",
+                    options: [
+                        "Linguistic Problem",
+                        "Pragmatic Problem",
+                        "Text-Specific Problem",
+                        "Convention-Related Problem"
+                    ],
+                    correct: [1]
+                },
+                {
+                    type: "multiple-select",
+                    text: "\"The patches can be found throughout the body, other than the face, soles of the feet, scalp, and palms.\"<br>What are the possible meanings of the word <strong>\"patch\"</strong> in the context of this text?<br><em>(You can select more than one option)</em>",
+                    options: [
+                        "Plak",
+                        "Yama",
+                        "Kızarıklık",
+                        "Lezyon"
+                    ],
+                    correct: [0, 1, 3]
+                },
+                {
+                    type: "true-false",
+                    text: "\"<strong><u>In the USA</u></strong>, about 50 percent of people with this skin condition experience itchiness, according to <strong><u>the American Academy of Dermatology (AAD)</u></strong>.\"<br>Is it correct to omit the underlined phrases without adding Turkish equivalents of data?",
+                    options: [
+                        "Yes",
+                        "No"
+                    ],
+                    correct: [1]
+                }
+            ]
+        }
+    ];
+
+    // Exercise state
+    let exCurrentTestId = null;
+    let exCurrentQIndex = 0;
+    let exStudentAnswers = [];
+
+    // DOM refs for exercise
+    const exerciseToggle = $("exercise-toggle");
+    const exerciseSelect = $("exercise-select");
+    const exerciseQuiz = $("exercise-quiz");
+    const exerciseResults = $("exercise-results");
+    const exerciseGrid = $("exercise-grid");
+    const exerciseBackHome = $("exercise-back-home");
+    const quizBackSelect = $("quiz-back-select");
+    const quizTitle = $("quiz-title");
+    const quizProgressLabel = $("quiz-progress-label");
+    const quizProgressFill = $("quiz-progress-fill");
+    const quizQType = $("quiz-q-type");
+    const quizQText = $("quiz-q-text");
+    const quizOptions = $("quiz-options");
+    const quizNextBtn = $("quiz-next-btn");
+    const resultsScoreCircle = $("results-score-circle");
+    const resultsScorePct = $("results-score-pct");
+    const resultsScoreDetail = $("results-score-detail");
+    const resultsReview = $("results-review");
+    const resultsBackTests = $("results-back-tests");
+    const resultsRetry = $("results-retry");
+
+    function hideAllSections() {
+        uploadSection.style.display = "none";
+        loadingSection.hidden = true;
+        resultsSection.hidden = true;
+        exerciseSelect.hidden = true;
+        exerciseQuiz.hidden = true;
+        exerciseResults.hidden = true;
+    }
+
+    function showHomePage() {
+        hideAllSections();
+        uploadSection.style.display = "";
+    }
+
+    function showExerciseSelect() {
+        hideAllSections();
+        exerciseSelect.hidden = false;
+        renderTestCards();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function renderTestCards() {
+        exerciseGrid.innerHTML = "";
+        QUIZ_DATA.forEach(test => {
+            const card = document.createElement("div");
+            card.className = "exercise-card";
+            card.innerHTML = `
+                <div class="exercise-card__icon">${test.icon}</div>
+                <div class="exercise-card__title">${esc(test.title)}</div>
+                <div class="exercise-card__desc">${esc(test.description)}</div>
+                <div class="exercise-card__meta">
+                    <span class="exercise-card__badge exercise-card__badge--questions">${test.questionCount} Questions</span>
+                    <span class="exercise-card__badge exercise-card__badge--type">Mixed Types</span>
+                    <span class="exercise-card__badge exercise-card__badge--time">~5 min</span>
+                </div>
+                <div class="exercise-card__start">
+                    <button class="btn btn--primary" data-test-id="${esc(test.id)}" type="button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Start Test
+                    </button>
+                </div>`;
+            card.querySelector(".btn--primary").addEventListener("click", (e) => {
+                e.stopPropagation();
+                startQuiz(test.id);
+            });
+            exerciseGrid.appendChild(card);
+        });
+    }
+
+    function startQuiz(testId) {
+        const test = QUIZ_DATA.find(t => t.id === testId);
+        if (!test) return;
+        exCurrentTestId = testId;
+        exCurrentQIndex = 0;
+        exStudentAnswers = test.questions.map(() => []);
+        hideAllSections();
+        exerciseQuiz.hidden = false;
+        quizTitle.textContent = test.title;
+        renderQuestion();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function getCurrentTest() {
+        return QUIZ_DATA.find(t => t.id === exCurrentTestId);
+    }
+
+    function renderQuestion() {
+        const test = getCurrentTest();
+        if (!test) return;
+        const q = test.questions[exCurrentQIndex];
+        const total = test.questions.length;
+        const num = exCurrentQIndex + 1;
+
+        // Progress
+        quizProgressLabel.textContent = `${num} / ${total}`;
+        quizProgressFill.style.width = `${(num / total) * 100}%`;
+
+        // Type badge
+        const typeLabels = {
+            "multiple-choice": "Multiple Choice",
+            "multiple-select": "Multiple Select",
+            "true-false": "True or False"
+        };
+        quizQType.textContent = typeLabels[q.type] || q.type;
+
+        // Question text (allow HTML for bold/underline)
+        quizQText.innerHTML = q.text;
+
+        // Options
+        quizOptions.innerHTML = "";
+        const isMulti = q.type === "multiple-select";
+        q.options.forEach((opt, idx) => {
+            const div = document.createElement("div");
+            div.className = "quiz-option" + (isMulti ? " quiz-option--checkbox" : "");
+            div.textContent = opt;
+            // Restore previous selection if navigating back
+            if (exStudentAnswers[exCurrentQIndex].includes(idx)) {
+                div.classList.add("quiz-option--selected");
+            }
+            div.addEventListener("click", () => {
+                if (isMulti) {
+                    // Toggle
+                    div.classList.toggle("quiz-option--selected");
+                    const sel = exStudentAnswers[exCurrentQIndex];
+                    if (sel.includes(idx)) {
+                        exStudentAnswers[exCurrentQIndex] = sel.filter(i => i !== idx);
+                    } else {
+                        sel.push(idx);
+                    }
+                } else {
+                    // Single select
+                    quizOptions.querySelectorAll(".quiz-option").forEach(o => o.classList.remove("quiz-option--selected"));
+                    div.classList.add("quiz-option--selected");
+                    exStudentAnswers[exCurrentQIndex] = [idx];
+                }
+            });
+            quizOptions.appendChild(div);
+        });
+
+        // Button label
+        quizNextBtn.textContent = num === total ? "Submit" : "Next";
+    }
+
+    function handleQuizNext() {
+        const test = getCurrentTest();
+        if (!test) return;
+        // Check if user selected at least one option
+        if (exStudentAnswers[exCurrentQIndex].length === 0) {
+            showToast("Please select an answer before continuing.", "error");
+            return;
+        }
+        if (exCurrentQIndex < test.questions.length - 1) {
+            exCurrentQIndex++;
+            renderQuestion();
+            // Re-animate the card
+            const card = $("quiz-question-card");
+            card.style.animation = "none";
+            card.offsetHeight; // trigger reflow
+            card.style.animation = "panelIn .3s ease";
+        } else {
+            showResults();
+        }
+    }
+
+    function showResults() {
+        const test = getCurrentTest();
+        if (!test) return;
+
+        hideAllSections();
+        exerciseResults.hidden = false;
+
+        // Calculate score
+        let correctCount = 0;
+        test.questions.forEach((q, idx) => {
+            const student = [...exStudentAnswers[idx]].sort().join(",");
+            const correct = [...q.correct].sort().join(",");
+            if (student === correct) correctCount++;
+        });
+
+        const pct = Math.round((correctCount / test.questions.length) * 100);
+
+        // Animate score ring
+        const circumference = 2 * Math.PI * 52; // r=52
+        const offset = circumference - (pct / 100) * circumference;
+        resultsScoreCircle.style.strokeDasharray = circumference;
+        resultsScoreCircle.style.strokeDashoffset = circumference;
+        // Trigger animation after a small delay
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                resultsScoreCircle.style.strokeDashoffset = offset;
+            });
+        });
+
+        resultsScorePct.textContent = pct + "%";
+        resultsScoreDetail.textContent = `${correctCount} of ${test.questions.length} correct`;
+
+        // Build review cards
+        resultsReview.innerHTML = "";
+        test.questions.forEach((q, idx) => {
+            const studentAns = exStudentAnswers[idx];
+            const studentSorted = [...studentAns].sort().join(",");
+            const correctSorted = [...q.correct].sort().join(",");
+            const isCorrect = studentSorted === correctSorted;
+
+            const card = document.createElement("div");
+            card.className = `review-card ${isCorrect ? "review-card--correct" : "review-card--incorrect"}`;
+            card.style.animationDelay = `${idx * 0.08}s`;
+
+            const yourAnswerText = studentAns.length > 0
+                ? studentAns.map(i => q.options[i]).join(", ")
+                : "No answer";
+            const correctAnswerText = q.correct.map(i => q.options[i]).join(", ");
+
+            // Strip HTML tags for review display of question text
+            const plainQ = q.text.replace(/<[^>]+>/g, '');
+
+            let answersHTML = "";
+            if (isCorrect) {
+                answersHTML = `
+                    <div class="review-card__answer review-card__answer--correct-answer">
+                        <span class="review-card__answer-label review-card__answer-label--correct">✓ Correct</span>
+                        <span>${esc(correctAnswerText)}</span>
+                    </div>`;
+            } else {
+                answersHTML = `
+                    <div class="review-card__answer review-card__answer--yours">
+                        <span class="review-card__answer-label review-card__answer-label--yours">Your Answer</span>
+                        <span>${esc(yourAnswerText)}</span>
+                    </div>
+                    <div class="review-card__answer review-card__answer--correct-answer">
+                        <span class="review-card__answer-label review-card__answer-label--correct">Correct Answer</span>
+                        <span>${esc(correctAnswerText)}</span>
+                    </div>`;
+            }
+
+            card.innerHTML = `
+                <div class="review-card__header">
+                    <span class="review-card__num">Q${idx + 1}</span>
+                    <span class="review-card__result ${isCorrect ? "review-card__result--correct" : "review-card__result--incorrect"}">
+                        ${isCorrect ? "✓ Correct" : "✗ Incorrect"}
+                    </span>
+                </div>
+                <div class="review-card__question">${esc(plainQ)}</div>
+                <div class="review-card__answers">${answersHTML}</div>`;
+            resultsReview.appendChild(card);
+        });
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // Bind exercise events
+    function bindExerciseEvents() {
+        exerciseToggle.addEventListener("click", () => {
+            // Close settings if open
+            settingsPanel.classList.remove("settings-panel--open");
+            settingsPanel.setAttribute("aria-hidden", "true");
+            showExerciseSelect();
+        });
+        exerciseBackHome.addEventListener("click", showHomePage);
+        quizBackSelect.addEventListener("click", () => {
+            if (confirm("Are you sure you want to leave this test? Your progress will be lost.")) {
+                showExerciseSelect();
+            }
+        });
+        quizNextBtn.addEventListener("click", handleQuizNext);
+        resultsBackTests.addEventListener("click", showExerciseSelect);
+        resultsRetry.addEventListener("click", () => {
+            if (exCurrentTestId) startQuiz(exCurrentTestId);
+        });
+    }
+
+    bindExerciseEvents();
+
     init();
 })();
