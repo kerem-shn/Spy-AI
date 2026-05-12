@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="default">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Spy AI</title>
+    <link rel="stylesheet" href="/static/themes.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .login-main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            padding: 20px;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 440px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            animation: panelIn 0.5s ease;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .login-logo {
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: center;
+        }
+        .login-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--grad-start), var(--grad-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        .login-tabs {
+            display: flex;
+            gap: 4px;
+            background: rgba(0,0,0,0.05);
+            padding: 4px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+        .login-tab {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .login-tab--active {
+            background: var(--bg-surface);
+            color: var(--accent-cyan);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+        .login-btn {
+            width: 100%;
+            justify-content: center;
+            margin-top: 12px;
+            padding: 14px;
+            font-size: 1rem;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-msg {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            background: rgba(244, 63, 94, 0.1);
+            color: var(--accent-rose);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+        }
+        [data-theme="dark"] .login-tabs { background: rgba(255,255,255,0.05); }
+
+        /* ── Mobile / Tablet Responsive ── */
+        @media (max-width: 480px) {
+            .login-card { padding: 28px 20px; border-radius: 18px; }
+            .login-title { font-size: 1.4rem; }
+            .login-subtitle { font-size: 0.85rem; }
+            .login-tab { font-size: 0.82rem; padding: 8px; }
+            .login-btn { padding: 12px; font-size: 0.92rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation" aria-hidden="true">
+        <div class="bg-orb bg-orb--1"></div>
+        <div class="bg-orb bg-orb--2"></div>
+        <div class="bg-orb bg-orb--3"></div>
+    </div>
+
+    <main class="login-main">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <svg width="60" height="60" viewBox="0 0 100 100" fill="none">
+                        <circle cx="42" cy="42" r="28" stroke="url(#lg)" stroke-width="5" fill="rgba(0,212,255,0.08)" />
+                        <text x="42" y="47" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="18" fill="url(#lg)">SPY</text>
+                        <line x1="62" y1="62" x2="88" y2="88" stroke="url(#lg)" stroke-width="6" stroke-linecap="round" />
+                        <defs>
+                            <linearGradient id="lg" x1="0" y1="0" x2="100" y2="100">
+                                <stop offset="0%" stop-color="var(--accent-cyan,#00d4ff)" />
+                                <stop offset="100%" stop-color="var(--accent-purple,#7c3aed)" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1 class="login-title">Welcome to Spy AI</h1>
+                <p class="login-subtitle">Please sign in to continue</p>
+            </div>
+
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                <div class="flash-messages">
+                  {% for message in messages %}
+                    <div class="flash-msg">{{ message }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
+
+            <div class="login-tabs">
+                <button class="login-tab login-tab--active" id="tab-student" onclick="setRole('student')">Student</button>
+                <button class="login-tab" id="tab-teacher" onclick="setRole('teacher')">Teacher</button>
+            </div>
+
+            <form action="/login" method="POST" id="login-form">
+                <input type="hidden" name="role" id="role-input" value="student">
+                
+                <div id="student-fields">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="name" class="input" placeholder="e.g. John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Student ID Number</label>
+                        <input type="text" name="identifier" class="input" placeholder="e.g. 2024001">
+                    </div>
+                </div>
+
+                <div id="teacher-fields" style="display:none">
+                    <div class="form-group">
+                        <label class="form-label">Teacher Name</label>
+                        <input type="text" name="identifier" class="input" placeholder="Enter your name" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="input" placeholder="••••••••" disabled>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn--primary login-btn">Sign In</button>
+            </form>
+
+            <div class="register-link" id="teacher-reg-link" style="display:none">
+                Don't have an account? <a href="/register">Register as Teacher</a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function setRole(role) {
+            document.getElementById('role-input').value = role;
+            
+            const studentTab = document.getElementById('tab-student');
+            const teacherTab = document.getElementById('tab-teacher');
+            const studentFields = document.getElementById('student-fields');
+            const teacherFields = document.getElementById('teacher-fields');
+            const teacherRegLink = document.getElementById('teacher-reg-link');
+            
+            const studentInputs = studentFields.querySelectorAll('input');
+            const teacherInputs = teacherFields.querySelectorAll('input');
+
+            if (role === 'student') {
+                studentTab.classList.add('login-tab--active');
+                teacherTab.classList.remove('login-tab--active');
+                studentFields.style.display = 'block';
+                teacherFields.style.display = 'none';
+                teacherRegLink.style.display = 'none';
+                studentInputs.forEach(i => i.disabled = false);
+                teacherInputs.forEach(i => i.disabled = true);
+            } else {
+                studentTab.classList.remove('login-tab--active');
+                teacherTab.classList.add('login-tab--active');
+                studentFields.style.display = 'none';
+                teacherFields.style.display = 'block';
+                teacherRegLink.style.display = 'block';
+                studentInputs.forEach(i => i.disabled = true);
+                teacherInputs.forEach(i => i.disabled = false);
+            }
+        }
+    </script>
+</body>
+</html>

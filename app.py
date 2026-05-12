@@ -11,7 +11,9 @@ import sqlite3
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, flash, session
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 import spacy
 from deep_translator import GoogleTranslator
@@ -80,6 +82,25 @@ wikipedia.set_lang("en")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "spy-ai-super-secret-key-123")
+
+login_manager = LoginManager()
+login_manager.login_view = "login"
+login_manager.init_app(app)
+
+class User(UserMixin):
+    def __init__(self, id, identifier, name, role):
+        self.id = id
+        self.identifier = identifier
+        self.name = name
+        self.role = role
+
+@login_manager.user_loader
+def load_user(user_id):
+    u = cache.get_user_by_id(user_id)
+    if u:
+        return User(u[0], u[1], u[2], u[4])
+    return None
 
 ALLOWED_EXTENSIONS = {"pdf", "docx", "doc", "txt"}
 ENTITY_LABELS = {"PERSON", "ORG", "GPE", "EVENT", "WORK_OF_ART", "NORP"}
@@ -154,8 +175,83 @@ class SpyAICache:
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    identifier TEXT UNIQUE,
+                    name TEXT,
+                    password_hash TEXT,
+                    role TEXT
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS quiz_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    test_id TEXT,
+                    score INTEGER,
+                    total_questions INTEGER,
+                    answers_json TEXT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
             conn.commit()
             conn.close()
+
+    def get_user_by_identifier(self, identifier):
+        try:
+            cursor = self._get_conn().cursor()
+            cursor.execute("SELECT * FROM users WHERE identifier=?", (identifier,))
+            return cursor.fetchone()
+        except: return None
+
+    def get_user_by_id(self, user_id):
+        try:
+            cursor = self._get_conn().cursor()
+            cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
+            return cursor.fetchone()
+        except: return None
+
+    def create_user(self, identifier, name, password_hash, role):
+        with self._lock:
+            try:
+                conn = self._get_conn()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO users (identifier, name, password_hash, role) VALUES (?, ?, ?, ?)",
+                               (identifier, name, password_hash, role))
+                conn.commit()
+                return cursor.lastrowid
+            except Exception as e:
+                logger.error(f"Error creating user: {e}")
+                return None
+
+    def save_quiz_result(self, user_id, test_id, score, total, answers_json):
+        with self._lock:
+            try:
+                conn = self._get_conn()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO quiz_results (user_id, test_id, score, total_questions, answers_json)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (user_id, test_id, score, total, answers_json))
+                conn.commit()
+            except Exception as e:
+                logger.error(f"Error saving quiz result: {e}")
+
+    def get_all_results(self):
+        try:
+            cursor = self._get_conn().cursor()
+            cursor.execute("""
+                SELECT users.identifier, users.name, quiz_results.test_id, 
+                       quiz_results.score, quiz_results.total_questions, 
+                       quiz_results.timestamp, quiz_results.answers_json
+                FROM quiz_results
+                JOIN users ON users.id = quiz_results.user_id
+                ORDER BY quiz_results.timestamp DESC
+            """)
+            return cursor.fetchall()
+        except: return []
 
     def get(self, category, key):
         try:
@@ -873,9 +969,107 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None):
 # Routes
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Routes — Authentication
+# ---------------------------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        role = request.form.get("role")
+        name = request.form.get("name")
+        identifier = request.form.get("identifier") # ID for student, Name for teacher
+        password = request.form.get("password")
+
+        if role == "student":
+            if not name or not identifier:
+                flash("Name and Student ID are required.")
+                return render_template("login.html")
+            
+            # Check if student exists, else create
+            u = cache.get_user_by_identifier(identifier)
+            if not u:
+                user_id = cache.create_user(identifier, name, None, "student")
+                u = cache.get_user_by_id(user_id)
+            
+            user_obj = User(u[0], u[1], u[2], u[4])
+            login_user(user_obj)
+            return redirect(url_for("index"))
+        
+        else: # Teacher
+            if not identifier or not password:
+                flash("Name and Password are required.")
+                return render_template("login.html")
+            
+            u = cache.get_user_by_identifier(identifier)
+            if u and u[3] and check_password_hash(u[3], password):
+                user_obj = User(u[0], u[1], u[2], u[4])
+                login_user(user_obj)
+                return redirect(url_for("index"))
+            else:
+                flash("Invalid credentials.")
+    
+    return render_template("login.html")
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        name = request.form.get("name")
+        password = request.form.get("password")
+        if not name or not password:
+            flash("Name and Password are required.")
+            return render_template("register.html")
+        
+        hashed = generate_password_hash(password)
+        if cache.create_user(name, name, hashed, "teacher"):
+            flash("Teacher registered successfully! Please login.")
+            return redirect(url_for("login"))
+        else:
+            flash("Username already exists.")
+            
+    return render_template("register.html")
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+# ---------------------------------------------------------------------------
+# Routes — Core
+# ---------------------------------------------------------------------------
+
 @app.route("/")
+@login_required
 def index():
-    return render_template("index.html")
+    return render_template("index.html", user=current_user)
+
+@app.route("/teacher/dashboard")
+@login_required
+def dashboard():
+    if current_user.role != "teacher":
+        return redirect(url_for("index"))
+    
+    results = cache.get_all_results()
+    return render_template("dashboard.html", results=results)
+
+@app.route("/api/save_result", methods=["POST"])
+@login_required
+def save_result():
+    data = request.json
+    cache.save_quiz_result(
+        current_user.id,
+        data.get("test_id"),
+        data.get("score"),
+        data.get("total"),
+        json.dumps(data.get("answers"))
+    )
+    return jsonify({"success": True})
+
 
 
 @app.route("/upload", methods=["POST"])

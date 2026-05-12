@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="default">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard — Spy AI</title>
+    <link rel="stylesheet" href="/static/themes.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .dashboard-main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .dashboard-title { font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, var(--grad-start), var(--grad-end)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .results-table-container { 
+            background: var(--bg-card); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid var(--border-subtle); 
+            border-radius: 20px; 
+            overflow: hidden;
+            animation: panelIn 0.5s ease;
+        }
+        .results-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .results-table th { 
+            padding: 16px 24px; 
+            background: rgba(0,0,0,0.03); 
+            font-size: 0.82rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .results-table td { 
+            padding: 16px 24px; 
+            border-bottom: 1px solid var(--border-subtle); 
+            font-size: 0.95rem;
+            color: var(--text-primary);
+        }
+        .results-table tr:last-child td { border-bottom: none; }
+        .results-table tr:hover td { background: rgba(0,212,255,0.02); }
+
+        .score-pill { 
+            padding: 4px 12px; 
+            border-radius: 20px; 
+            font-weight: 700; 
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+        .score-pill--high { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); }
+        .score-pill--mid { background: rgba(245, 158, 11, 0.1); color: var(--accent-amber); }
+        .score-pill--low { background: rgba(244, 63, 94, 0.1); color: var(--accent-rose); }
+
+        .student-info { display: flex; flex-direction: column; }
+        .student-id { font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        
+        .empty-state { text-align: center; padding: 60px 24px; color: var(--text-muted); }
+
+        /* ── Mobile / Tablet Responsive ── */
+        @media (max-width: 768px) {
+            .dashboard-main { padding: 20px 12px; }
+            .dashboard-header { flex-direction: column; gap: 8px; text-align: center; }
+            .dashboard-title { font-size: 1.5rem; }
+            .header__actions { gap: 6px; }
+            .header__actions .btn { font-size: 0.75rem; padding: 6px 10px; }
+
+            /* Card-based layout for mobile */
+            .results-table thead { display: none; }
+            .results-table, .results-table tbody, .results-table tr, .results-table td {
+                display: block; width: 100%;
+            }
+            .results-table tr {
+                padding: 16px; margin-bottom: 8px;
+                border-bottom: 1px solid var(--border-subtle);
+            }
+            .results-table td {
+                padding: 4px 0; border-bottom: none;
+                display: flex; justify-content: space-between; align-items: center;
+            }
+            .results-table td::before {
+                font-weight: 700; font-size: 0.75rem;
+                text-transform: uppercase; color: var(--text-muted);
+            }
+            .results-table td:nth-child(1)::before { content: 'Student'; }
+            .results-table td:nth-child(2)::before { content: 'Test'; }
+            .results-table td:nth-child(3)::before { content: 'Score'; }
+            .results-table td:nth-child(4)::before { content: 'Date'; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation" aria-hidden="true">
+        <div class="bg-orb bg-orb--1"></div>
+        <div class="bg-orb bg-orb--2"></div>
+        <div class="bg-orb bg-orb--3"></div>
+    </div>
+
+    <header class="header">
+        <div class="header__inner">
+            <div class="header__brand">
+                <div class="header__logo">
+                    <svg width="34" height="34" viewBox="0 0 100 100" fill="none">
+                        <circle cx="42" cy="42" r="28" stroke="url(#lg)" stroke-width="5" fill="rgba(0,212,255,0.08)" />
+                        <text x="42" y="47" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="18" fill="url(#lg)">SPY</text>
+                        <line x1="62" y1="62" x2="88" y2="88" stroke="url(#lg)" stroke-width="6" stroke-linecap="round" />
+                        <defs><linearGradient id="lg" x1="0" y1="0" x2="100" y2="100"><stop offset="0%" stop-color="var(--accent-cyan,#00d4ff)" /><stop offset="100%" stop-color="var(--accent-purple,#7c3aed)" /></linearGradient></defs>
+                    </svg>
+                </div>
+                <h1 class="header__title">Teacher Dashboard</h1>
+            </div>
+            <div class="header__actions">
+                <a href="/" class="btn btn--ghost">Research Tool</a>
+                <a href="/logout" class="btn btn--ghost">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <div class="dashboard-header">
+            <div>
+                <h2 class="dashboard-title">Student Performance</h2>
+                <p style="color:var(--text-secondary)">View results for the "Pityriasis Rosea" exercises</p>
+            </div>
+        </div>
+
+        <div class="results-table-container">
+            {% if results %}
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Test ID</th>
+                        <th>Score</th>
+                        <th>Date & Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for res in results %}
+                    {% set pct = (res[3] / res[4] * 100) | round | int %}
+                    <tr>
+                        <td>
+                            <div class="student-info">
+                                <strong>{{ res[1] }}</strong>
+                                <span class="student-id">ID: {{ res[0] }}</span>
+                            </div>
+                        </td>
+                        <td><code style="font-family:'JetBrains Mono'; font-size:0.8rem">{{ res[2] }}</code></td>
+                        <td>
+                            <span class="score-pill {% if pct >= 80 %}score-pill--high{% elif pct >= 50 %}score-pill--mid{% else %}score-pill--low{% endif %}">
+                                {{ res[3] }} / {{ res[4] }} ({{ pct }}%)
+                            </span>
+                        </td>
+                        <td style="color:var(--text-muted); font-size:0.85rem">{{ res[5] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:16px; opacity:0.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <h3>No results yet</h3>
+                <p>Student test scores will appear here once they complete an exercise.</p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

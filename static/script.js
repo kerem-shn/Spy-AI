@@ -703,6 +703,18 @@
         resultsScorePct.textContent = pct + "%";
         resultsScoreDetail.textContent = `${correctCount} of ${test.questions.length} correct`;
 
+        // Save result to server
+        fetch("/api/save_result", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                test_id: test.id,
+                score: correctCount,
+                total: test.questions.length,
+                answers: exStudentAnswers
+            })
+        }).catch(err => console.error("Failed to save quiz result", err));
+
         // Build review cards
         resultsReview.innerHTML = "";
         test.questions.forEach((q, idx) => {
