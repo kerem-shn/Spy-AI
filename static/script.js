@@ -207,10 +207,34 @@
     function renderSourceText(text, terms, entities){
         // Build term map: surface form -> lemma
         const termMap={};
+        const textLower=text.toLowerCase();
         for(const [lemma,info] of Object.entries(terms)){
             const forms=info.originals&&info.originals.length?info.originals:[lemma];
-            for(const f of forms) termMap[f.toLowerCase()]=lemma;
-            termMap[lemma.toLowerCase()]=lemma;
+            let foundContiguous=false;
+            for(const f of forms){
+                // Check if this surface form actually exists contiguously in text
+                if(textLower.includes(f.toLowerCase())){
+                    termMap[f.toLowerCase()]=lemma;
+                    foundContiguous=true;
+                }
+            }
+            // Also try the lemma itself
+            if(textLower.includes(lemma.toLowerCase())){
+                termMap[lemma.toLowerCase()]=lemma;
+                foundContiguous=true;
+            }
+            // For multi-word terms that DON'T appear contiguously
+            // (e.g. "mother patch" when text says "mother" or "herald" patch),
+            // register each component word as a clickable link to the compound term.
+            if(!foundContiguous && lemma.includes(" ")){
+                const words=lemma.split(/\s+/);
+                for(const w of words){
+                    // Only add if this word isn't already mapped to something else
+                    if(!termMap[w.toLowerCase()]){
+                        termMap[w.toLowerCase()]=lemma;
+                    }
+                }
+            }
         }
         const entityNames=Object.keys(entities).sort((a,b)=>b.length-a.length);
 
@@ -268,9 +292,11 @@
                     entityPos.push({start:s,end:e,name,original:m[0]});
             }
         }
-        // Find term positions (whole words)
+        // Find term positions (whole words) — sort entries longest-first
+        // so "christmas tree rash" is matched before "rash"
+        const termEntries=Object.entries(termMap).sort((a,b)=>b[0].length-a[0].length);
         const termPos=[];
-        for(const [surface,lemma] of Object.entries(termMap)){
+        for(const [surface,lemma] of termEntries){
             const re=new RegExp("\\b"+escRe(surface)+"\\b","gi");
             let m;while((m=re.exec(text))!==null){
                 const s=m.index,e=s+m[0].length;

@@ -92,6 +92,45 @@ ENTITY_LABEL_DISPLAY = {
     "NORP": "Group/Nationality",
 }
 
+# ---------------------------------------------------------------------------
+# Domain-Specific Translation Overrides
+# These bypass the translation engine for known medical/dermatology terms.
+# ---------------------------------------------------------------------------
+TRANSLATION_OVERRIDES = {
+    "christmas tree rash": ["Madalyon Hastalığı"],
+    "mother patch":  ["birincil lezyon", "ilk lezyon", "madalyon plak", "primer plak"],
+    "herald patch":  ["haberci plak", "öncü plak"],
+    "daughter patch": ["ikincil lezyon", "artçı plak", "sekonder plak"],
+    "patch":          ["plak", "lezyon", "yama"],
+    "pityriasis rosea": ["Pitiriyazis Rozea", "Gül Hastalığı"],
+    "skin rash": ["deri döküntüsü", "cilt döküntüsü"],
+    "abdomen": ["karın", "batın"],
+    "scalp": ["kafa derisi", "saç derisi"],
+    "headache": ["baş ağrısı"],
+    "fatigue": ["yorgunluk", "tükenmişlik", "bitkinlik"], 
+    "soles": ["ayak tabanları"],
+
+}
+
+# ---------------------------------------------------------------------------
+# Domain-Specific Definition Overrides
+# These bypass WordNet and Wikipedia for specific terms/entities.
+# ---------------------------------------------------------------------------
+DEFINITION_OVERRIDES = {
+    "mother patch": "The initial, large, oval-shaped patch that appears during the first stage of pityriasis rosea, typically on the chest, back, or abdomen.",
+    "herald patch": "Another name for the mother patch; the first clinical sign of pityriasis rosea, usually measuring 2 to 10 centimeters.",
+    "daughter patch": "Smaller secondary lesions that appear in stages after the initial herald patch, often following skin cleavage lines.",
+    "pityriasis rosea": "A common, self-limiting skin condition characterized by a herald patch followed by a widespread 'Christmas tree' distribution of smaller lesions.",
+    "christmas tree rash": "A descriptive name for pityriasis rosea, referring to the characteristic pattern the secondary lesions form on the back, resembling the branches of a fir tree or a medallion.",
+    "american academy of dermatology": "The American Academy of Dermatology (AAD) is a non-profit professional organization of dermatologists in the United States and Canada, based in Rosemont, Illinois, near Chicago. It was founded in 1938 and has more than 21,000 members. The academy grants fellowships and associate memberships, as well as fellowships for nonresidents of the United States or Canada.",
+    "the american academy of dermatology": "The American Academy of Dermatology (AAD) is a non-profit professional organization of dermatologists in the United States and Canada, based in Rosemont, Illinois, near Chicago. It was founded in 1938 and has more than 21,000 members. The academy grants fellowships and associate memberships, as well as fellowships for nonresidents of the United States or Canada.",
+    "Skin Dermatology": "Dermatology is the branch of medicine that focuses on the diagnosis, treatment, and prevention of diseases and conditions affecting the skin, hair, nails, and mucous membranes.",
+    "soles": ["the underside of the foot from the heel to the toes", "the bottom of a shoe"],
+    "headache": ["pain in the head caused by dilation of cerebral arteries or muscle contractions or a reaction to drugs", "something or someone that causes anxiety; a source of unhappiness."],
+    "patch": ["a small area of skin that is different from the skin around it", "a piece of material used to mend or cover a hole"],
+    "board-certified": ""
+}
+
 class SpyAICache:
     _lock = threading.Lock()
 
@@ -366,12 +405,21 @@ def get_context_aware_meanings(word: str, sentence: str, wn_pos=None, limit: int
     against stems of definitions, examples, and hypernym definitions.
     Applies frequency bias for more accurate results.
     """
+    # 1. Check for custom definition overrides FIRST (bypasses cache)
+    override_key = word.lower().strip()
+    if override_key in DEFINITION_OVERRIDES:
+        val = DEFINITION_OVERRIDES[override_key]
+        if isinstance(val, list):
+            return [{"definition": d, "is_primary": i == 0} for i, d in enumerate(val)]
+        return [{"definition": val, "is_primary": True}]
+
+    # 2. Check cache
     cache_key = f"{word}:{sentence[:100]}:{wn_pos}"
     cached = cache.get("term_meanings", cache_key)
     if cached: return cached
 
     meanings = []
-    lookup_word = word.replace("-", "_") if "-" in word else word
+    lookup_word = word.replace(" ", "_").replace("-", "_")
     all_synsets = wn.synsets(lookup_word, pos=wn_pos)
     if not all_synsets:
         all_synsets = wn.synsets(lookup_word)
@@ -460,6 +508,11 @@ def get_contextual_translation(word: str, sentence: str, translate_fn):
 
 def get_translations(word: str, sentence: str, translate_fn):
     """Get high-quality translations using contextual disambiguation."""
+    # Check domain-specific translation overrides first
+    override_key = word.lower().strip()
+    if override_key in TRANSLATION_OVERRIDES:
+        return list(TRANSLATION_OVERRIDES[override_key])
+
     translations = []
     
     # 1. Primary: Contextual translation (the most accurate)
@@ -542,23 +595,37 @@ def get_entity_summary(name: str, label: str) -> dict:
     Get a comprehensive summary for a named entity.
     Tries Wikipedia (EN + TR), then DuckDuckGo with multiple strategies.
     """
+    # 1. Check for manual definition overrides first (bypasses Wikipedia/Cache)
+    override_key = name.lower().strip()
+    if override_key in DEFINITION_OVERRIDES:
+        val = DEFINITION_OVERRIDES[override_key]
+        # Handle list of definitions if provided for an entity
+        summary_text = val[0] if isinstance(val, list) else val
+        return {
+            "label": label,
+            "label_display": ENTITY_LABEL_DISPLAY.get(label, label),
+            "summary": summary_text,
+            "source": "Custom Definition",
+        }
+
     summary = ""
     source = ""
 
-    # 1. Try English Wikipedia
-    try:
-        wikipedia.set_lang("en")
-        summary = wikipedia.summary(name, sentences=3)
-        source = "Wikipedia"
-    except wikipedia.exceptions.DisambiguationError as e:
-        if e.options:
-            try:
-                summary = wikipedia.summary(e.options[0], sentences=3)
-                source = "Wikipedia"
-            except Exception:
-                pass
-    except Exception:
-        pass
+    # 2. Try English Wikipedia
+    if not summary:
+        try:
+            wikipedia.set_lang("en")
+            summary = wikipedia.summary(name, sentences=3)
+            source = "Wikipedia"
+        except wikipedia.exceptions.DisambiguationError as e:
+            if e.options:
+                try:
+                    summary = wikipedia.summary(e.options[0], sentences=3)
+                    source = "Wikipedia"
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     # 2. Wikipedia (Localized Fallback) - ONLY if primary failed and entity seems Turkish
     if not summary:
@@ -699,7 +766,52 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None):
             seen_lemmas[l]["originals"] = {item["original"]}
         else:
             seen_lemmas[l]["originals"].add(item["original"])
-    
+
+    # Inject forced override terms — ALWAYS present when their component
+    # words exist anywhere in the source text.  Uses simple substring
+    # matching on the full text (not regex) to avoid smart-quote /
+    # sentence-segmentation edge cases.
+    text_lower = text.lower()
+    for override_key in TRANSLATION_OVERRIDES:
+        if override_key not in seen_lemmas:
+            words = override_key.split()
+            # Check full text for ALL component words (simple, robust)
+            if all(w in text_lower for w in words):
+                # Try to find a sentence that contains ALL words (best context)
+                found_sentence = ""
+                for sent in doc.sents:
+                    sl = sent.text.lower()
+                    if all(w in sl for w in words):
+                        found_sentence = sent.text.strip()
+                        break
+                # Fallback: any sentence that contains at least one word
+                if not found_sentence:
+                    for sent in doc.sents:
+                        if any(w in sent.text.lower() for w in words):
+                            found_sentence = sent.text.strip()
+                            break
+                # Always inject — even with empty context
+                seen_lemmas[override_key] = {
+                    "lemma": override_key,
+                    "sentence": found_sentence,
+                    "original": override_key,
+                    "wn_pos": None,
+                    "originals": {override_key},
+                }
+
+    # Suppress standalone terms that are mere components of compound
+    # overrides.  e.g. "herald" alone must not appear because
+    # "herald patch" already exists as a compound term.
+    # Words that are themselves override keys (like "patch") are kept.
+    _parts_to_suppress = set()
+    for key in TRANSLATION_OVERRIDES:
+        if " " in key and key in seen_lemmas:
+            for w in key.split():
+                if w not in TRANSLATION_OVERRIDES:
+                    _parts_to_suppress.add(w)
+    for w in _parts_to_suppress:
+        seen_lemmas.pop(w, None)
+
     final_terms = list(seen_lemmas.values())
 
     entities_to_research = []
