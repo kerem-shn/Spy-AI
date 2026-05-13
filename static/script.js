@@ -1,114 +1,114 @@
 /* === SPY AI — Client-Side Logic (v4) === */
 (function () {
     "use strict";
-    const $=id=>document.getElementById(id);
+    const $ = id => document.getElementById(id);
 
-    const siteHeader=$("site-header"),settingsToggle=$("settings-toggle"),settingsPanel=$("settings-panel");
-    const deeplKeyInput=$("deepl-key-input");
-    const dirBtns=document.querySelectorAll(".direction-btn");
-    const uploadZone=$("upload-zone"),fileInput=$("file-input");
-    const fileInfo=$("file-info"),fileName=$("file-name"),fileSize=$("file-size");
-    const analyzeBtn=$("analyze-btn"),clearBtn=$("clear-btn");
-    const uploadSection=$("upload-section"),loadingSection=$("loading-section");
-    const loadingStatus=$("loading-status"),loadingBarFill=$("loading-bar-fill");
-    const resultsSection=$("results-section");
-    const statTerms=$("stat-terms"),statEntities=$("stat-entities"),statEngine=$("stat-engine");
-    const tabTerms=$("tab-terms"),tabEntities=$("tab-entities");
-    const termsView=$("terms-view"),entitiesContainer=$("entities-container");
-    const sourceTextView=$("source-text-view"),detailAnchor=$("detail-panel-anchor");
-    const resultsLayout=$("results-layout");
-    const themePicker=$("theme-picker"),accentPicker=$("accent-picker"),positionPicker=$("position-picker");
-    const toastContainer=$("toast-container");
+    const siteHeader = $("site-header"), settingsToggle = $("settings-toggle"), settingsPanel = $("settings-panel");
+    const deeplKeyInput = $("deepl-key-input");
+    const dirBtns = document.querySelectorAll(".direction-btn");
+    const uploadZone = $("upload-zone"), fileInput = $("file-input");
+    const fileInfo = $("file-info"), fileName = $("file-name"), fileSize = $("file-size");
+    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn");
+    const uploadSection = $("upload-section"), loadingSection = $("loading-section");
+    const loadingStatus = $("loading-status"), loadingBarFill = $("loading-bar-fill");
+    const resultsSection = $("results-section");
+    const statTerms = $("stat-terms"), statEntities = $("stat-entities"), statEngine = $("stat-engine");
+    const tabTerms = $("tab-terms"), tabEntities = $("tab-entities");
+    const termsView = $("terms-view"), entitiesContainer = $("entities-container");
+    const sourceTextView = $("source-text-view"), detailAnchor = $("detail-panel-anchor");
+    const resultsLayout = $("results-layout");
+    const themePicker = $("theme-picker"), accentPicker = $("accent-picker"), positionPicker = $("position-picker");
+    const toastContainer = $("toast-container");
 
-    let selectedFile=null,currentDirection="en-tr",analysisData=null,panelPos="bottom";
+    let selectedFile = null, currentDirection = "en-tr", analysisData = null, panelPos = "bottom";
 
-    function init(){
-        const sk=localStorage.getItem("spyai_deepl_key");if(sk)deeplKeyInput.value=sk;
-        const sd=localStorage.getItem("spyai_direction");if(sd)setDirection(sd);
-        applyTheme(localStorage.getItem("spyai_theme")||"light");
-        applyAccent(localStorage.getItem("spyai_accent")||"default");
-        applyPanelPos(localStorage.getItem("spyai_panelpos")||"bottom");
+    function init() {
+        const sk = localStorage.getItem("spyai_deepl_key"); if (sk) deeplKeyInput.value = sk;
+        const sd = localStorage.getItem("spyai_direction"); if (sd) setDirection(sd);
+        applyTheme(localStorage.getItem("spyai_theme") || "light");
+        applyAccent(localStorage.getItem("spyai_accent") || "default");
+        applyPanelPos(localStorage.getItem("spyai_panelpos") || "bottom");
         bindEvents();
     }
 
-    function bindEvents(){
+    function bindEvents() {
         // Settings toggle
-        settingsToggle.addEventListener("click",()=>{
+        settingsToggle.addEventListener("click", () => {
             settingsPanel.classList.toggle("settings-panel--open");
-            settingsPanel.setAttribute("aria-hidden",!settingsPanel.classList.contains("settings-panel--open"));
+            settingsPanel.setAttribute("aria-hidden", !settingsPanel.classList.contains("settings-panel--open"));
         });
-        deeplKeyInput.addEventListener("change",()=>localStorage.setItem("spyai_deepl_key",deeplKeyInput.value.trim()));
-        dirBtns.forEach(b=>b.addEventListener("click",()=>setDirection(b.dataset.dir)));
+        deeplKeyInput.addEventListener("change", () => localStorage.setItem("spyai_deepl_key", deeplKeyInput.value.trim()));
+        dirBtns.forEach(b => b.addEventListener("click", () => setDirection(b.dataset.dir)));
 
         // Upload
-        uploadZone.addEventListener("click",()=>fileInput.click());
-        uploadZone.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();fileInput.click()}});
-        uploadZone.addEventListener("dragover",e=>{e.preventDefault();uploadZone.classList.add("upload-zone--dragover")});
-        uploadZone.addEventListener("dragleave",()=>uploadZone.classList.remove("upload-zone--dragover"));
-        uploadZone.addEventListener("drop",e=>{e.preventDefault();uploadZone.classList.remove("upload-zone--dragover");if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0])});
-        fileInput.addEventListener("change",()=>{if(fileInput.files.length)handleFile(fileInput.files[0])});
-        analyzeBtn.addEventListener("click",runAnalysis);
-        clearBtn.addEventListener("click",clearFile);
+        uploadZone.addEventListener("click", () => fileInput.click());
+        uploadZone.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click() } });
+        uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("upload-zone--dragover") });
+        uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("upload-zone--dragover"));
+        uploadZone.addEventListener("drop", e => { e.preventDefault(); uploadZone.classList.remove("upload-zone--dragover"); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]) });
+        fileInput.addEventListener("change", () => { if (fileInput.files.length) handleFile(fileInput.files[0]) });
+        analyzeBtn.addEventListener("click", runAnalysis);
+        clearBtn.addEventListener("click", clearFile);
 
         // Tabs
-        tabTerms.addEventListener("click",()=>switchTab("terms"));
-        tabEntities.addEventListener("click",()=>switchTab("entities"));
+        tabTerms.addEventListener("click", () => switchTab("terms"));
+        tabEntities.addEventListener("click", () => switchTab("entities"));
 
         // Theme, accent, position pickers
-        themePicker.querySelectorAll(".theme-swatch").forEach(s=>s.addEventListener("click",()=>applyTheme(s.dataset.theme)));
-        accentPicker.querySelectorAll(".theme-swatch").forEach(s=>s.addEventListener("click",()=>applyAccent(s.dataset.accent)));
-        positionPicker.querySelectorAll(".pos-swatch").forEach(s=>s.addEventListener("click",()=>applyPanelPos(s.dataset.pos)));
+        themePicker.querySelectorAll(".theme-swatch").forEach(s => s.addEventListener("click", () => applyTheme(s.dataset.theme)));
+        accentPicker.querySelectorAll(".theme-swatch").forEach(s => s.addEventListener("click", () => applyAccent(s.dataset.accent)));
+        positionPicker.querySelectorAll(".pos-swatch").forEach(s => s.addEventListener("click", () => applyPanelPos(s.dataset.pos)));
 
         // Header shrink on scroll
-        let lastScroll=0;
-        window.addEventListener("scroll",()=>{
-            const y=window.scrollY;
-            siteHeader.classList.toggle("header--compact",y>60);
-            lastScroll=y;
-        },{passive:true});
+        let lastScroll = 0;
+        window.addEventListener("scroll", () => {
+            const y = window.scrollY;
+            siteHeader.classList.toggle("header--compact", y > 60);
+            lastScroll = y;
+        }, { passive: true });
     }
 
     // --- Theme / Accent / Position ---
-    function applyTheme(t){
-        document.documentElement.setAttribute("data-theme",t);
-        localStorage.setItem("spyai_theme",t);
-        themePicker.querySelectorAll(".theme-swatch").forEach(s=>s.classList.toggle("theme-swatch--active",s.dataset.theme===t));
+    function applyTheme(t) {
+        document.documentElement.setAttribute("data-theme", t);
+        localStorage.setItem("spyai_theme", t);
+        themePicker.querySelectorAll(".theme-swatch").forEach(s => s.classList.toggle("theme-swatch--active", s.dataset.theme === t));
     }
-    function applyAccent(a){
-        document.documentElement.setAttribute("data-accent",a);
-        localStorage.setItem("spyai_accent",a);
-        accentPicker.querySelectorAll(".theme-swatch").forEach(s=>s.classList.toggle("theme-swatch--active",s.dataset.accent===a));
+    function applyAccent(a) {
+        document.documentElement.setAttribute("data-accent", a);
+        localStorage.setItem("spyai_accent", a);
+        accentPicker.querySelectorAll(".theme-swatch").forEach(s => s.classList.toggle("theme-swatch--active", s.dataset.accent === a));
     }
-    function applyPanelPos(p){
-        panelPos=p;
-        localStorage.setItem("spyai_panelpos",p);
-        if(resultsLayout) resultsLayout.setAttribute("data-panel-pos",p);
-        positionPicker.querySelectorAll(".pos-swatch").forEach(s=>s.classList.toggle("pos-swatch--active",s.dataset.pos===p));
+    function applyPanelPos(p) {
+        panelPos = p;
+        localStorage.setItem("spyai_panelpos", p);
+        if (resultsLayout) resultsLayout.setAttribute("data-panel-pos", p);
+        positionPicker.querySelectorAll(".pos-swatch").forEach(s => s.classList.toggle("pos-swatch--active", s.dataset.pos === p));
     }
-    function setDirection(d){
-        currentDirection=d;localStorage.setItem("spyai_direction",d);
-        dirBtns.forEach(b=>b.classList.toggle("direction-btn--active",b.dataset.dir===d));
+    function setDirection(d) {
+        currentDirection = d; localStorage.setItem("spyai_direction", d);
+        dirBtns.forEach(b => b.classList.toggle("direction-btn--active", b.dataset.dir === d));
     }
 
     // --- File ---
-    function handleFile(f){
-        const ext=f.name.split(".").pop().toLowerCase();
-        if(!["pdf","docx","doc","txt"].includes(ext)){showToast("Unsupported file type.","error");return}
-        selectedFile=f;fileName.textContent=f.name;fileSize.textContent=fmtSize(f.size);fileInfo.hidden=false;
+    function handleFile(f) {
+        const ext = f.name.split(".").pop().toLowerCase();
+        if (!["pdf", "docx", "doc", "txt"].includes(ext)) { showToast("Unsupported file type.", "error"); return }
+        selectedFile = f; fileName.textContent = f.name; fileSize.textContent = fmtSize(f.size); fileInfo.hidden = false;
     }
-    function clearFile(){selectedFile=null;fileInput.value="";fileInfo.hidden=true;resultsSection.hidden=true}
-    function fmtSize(b){if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";return(b/1048576).toFixed(1)+" MB"}
+    function clearFile() { selectedFile = null; fileInput.value = ""; fileInfo.hidden = true; resultsSection.hidden = true }
+    function fmtSize(b) { if (b < 1024) return b + " B"; if (b < 1048576) return (b / 1024).toFixed(1) + " KB"; return (b / 1048576).toFixed(1) + " MB" }
 
     // --- Analysis ---
     // --- Analysis (Streaming) ---
-    async function runAnalysis(){
-        if(!selectedFile){showToast("Please select a file.","error");return}
-        uploadSection.style.display="none";loadingSection.hidden=false;resultsSection.hidden=true;
-        loadingStatus.textContent="Connecting...";
-        loadingBarFill.style.width="5%";
+    async function runAnalysis() {
+        if (!selectedFile) { showToast("Please select a file.", "error"); return }
+        uploadSection.style.display = "none"; loadingSection.hidden = false; resultsSection.hidden = true;
+        loadingStatus.textContent = "Connecting...";
+        loadingBarFill.style.width = "5%";
 
-        const fd=new FormData();fd.append("file",selectedFile);fd.append("direction",currentDirection);
-        const key=deeplKeyInput.value.trim();if(key)fd.append("deepl_key",key);
+        const fd = new FormData(); fd.append("file", selectedFile); fd.append("direction", currentDirection);
+        const key = deeplKeyInput.value.trim(); if (key) fd.append("deepl_key", key);
 
         analysisData = { source_text: "", terms: {}, entities: {}, stats: {} };
 
@@ -150,8 +150,8 @@
         switch (type) {
             case "status":
                 loadingStatus.textContent = payload;
-                if(payload.includes("Processing terms")) loadingBarFill.style.width="40%";
-                if(payload.includes("Researching entities")) loadingBarFill.style.width="75%";
+                if (payload.includes("Processing terms")) loadingBarFill.style.width = "40%";
+                if (payload.includes("Researching entities")) loadingBarFill.style.width = "75%";
                 break;
             case "meta":
                 analysisData.source_text = payload.source_text;
@@ -172,7 +172,7 @@
                 incrementalRender();
                 break;
             case "done":
-                loadingBarFill.style.width="100%";
+                loadingBarFill.style.width = "100%";
                 showToast("Analysis complete!", "success");
                 break;
             case "error":
@@ -204,130 +204,130 @@
     }
 
     // === SOURCE TEXT with paragraph preservation ===
-    function renderSourceText(text, terms, entities){
+    function renderSourceText(text, terms, entities) {
         // Build term map: surface form -> lemma
-        const termMap={};
-        const textLower=text.toLowerCase();
-        for(const [lemma,info] of Object.entries(terms)){
-            const forms=info.originals&&info.originals.length?info.originals:[lemma];
-            let foundContiguous=false;
-            for(const f of forms){
+        const termMap = {};
+        const textLower = text.toLowerCase();
+        for (const [lemma, info] of Object.entries(terms)) {
+            const forms = info.originals && info.originals.length ? info.originals : [lemma];
+            let foundContiguous = false;
+            for (const f of forms) {
                 // Check if this surface form actually exists contiguously in text
-                if(textLower.includes(f.toLowerCase())){
-                    termMap[f.toLowerCase()]=lemma;
-                    foundContiguous=true;
+                if (textLower.includes(f.toLowerCase())) {
+                    termMap[f.toLowerCase()] = lemma;
+                    foundContiguous = true;
                 }
             }
             // Also try the lemma itself
-            if(textLower.includes(lemma.toLowerCase())){
-                termMap[lemma.toLowerCase()]=lemma;
-                foundContiguous=true;
+            if (textLower.includes(lemma.toLowerCase())) {
+                termMap[lemma.toLowerCase()] = lemma;
+                foundContiguous = true;
             }
             // For multi-word terms that DON'T appear contiguously
             // (e.g. "mother patch" when text says "mother" or "herald" patch),
             // register each component word as a clickable link to the compound term.
-            if(!foundContiguous && lemma.includes(" ")){
-                const words=lemma.split(/\s+/);
-                for(const w of words){
+            if (!foundContiguous && lemma.includes(" ")) {
+                const words = lemma.split(/\s+/);
+                for (const w of words) {
                     // Only add if this word isn't already mapped to something else
-                    if(!termMap[w.toLowerCase()]){
-                        termMap[w.toLowerCase()]=lemma;
+                    if (!termMap[w.toLowerCase()]) {
+                        termMap[w.toLowerCase()] = lemma;
                     }
                 }
             }
         }
-        const entityNames=Object.keys(entities).sort((a,b)=>b.length-a.length);
+        const entityNames = Object.keys(entities).sort((a, b) => b.length - a.length);
 
         // Split text into paragraphs (preserve original formatting)
-        const paragraphs=text.split(/\n\s*\n|\r\n\s*\r\n/);
+        const paragraphs = text.split(/\n\s*\n|\r\n\s*\r\n/);
 
-        let fullHTML="";
-        for(const para of paragraphs){
-            const trimmed=para.trim();
-            if(!trimmed) continue;
-            const paraHTML=highlightParagraph(trimmed, termMap, entityNames);
-            fullHTML+=`<p>${paraHTML}</p>`;
+        let fullHTML = "";
+        for (const para of paragraphs) {
+            const trimmed = para.trim();
+            if (!trimmed) continue;
+            const paraHTML = highlightParagraph(trimmed, termMap, entityNames);
+            fullHTML += `<p>${paraHTML}</p>`;
         }
         // If no paragraph breaks, treat each line as a paragraph
-        if(paragraphs.length<=1){
-            const lines=text.split(/\n|\r\n/);
-            if(lines.length>1){
-                fullHTML="";
-                for(const line of lines){
-                    const t=line.trim();
-                    if(!t) continue;
-                    fullHTML+=`<p>${highlightParagraph(t, termMap, entityNames)}</p>`;
+        if (paragraphs.length <= 1) {
+            const lines = text.split(/\n|\r\n/);
+            if (lines.length > 1) {
+                fullHTML = "";
+                for (const line of lines) {
+                    const t = line.trim();
+                    if (!t) continue;
+                    fullHTML += `<p>${highlightParagraph(t, termMap, entityNames)}</p>`;
                 }
             }
         }
 
-        sourceTextView.innerHTML=fullHTML;
-        detailAnchor.innerHTML="";
+        sourceTextView.innerHTML = fullHTML;
+        detailAnchor.innerHTML = "";
 
         // Bind clicks
-        sourceTextView.querySelectorAll(".hl-term").forEach(el=>{
-            el.addEventListener("click",()=>{
-                sourceTextView.querySelectorAll(".hl-term--active,.hl-entity--active").forEach(a=>a.classList.remove("hl-term--active","hl-entity--active"));
+        sourceTextView.querySelectorAll(".hl-term").forEach(el => {
+            el.addEventListener("click", () => {
+                sourceTextView.querySelectorAll(".hl-term--active,.hl-entity--active").forEach(a => a.classList.remove("hl-term--active", "hl-entity--active"));
                 el.classList.add("hl-term--active");
                 showTermDetail(el.dataset.lemma);
             });
         });
-        sourceTextView.querySelectorAll(".hl-entity").forEach(el=>{
-            el.addEventListener("click",()=>{
-                sourceTextView.querySelectorAll(".hl-term--active,.hl-entity--active").forEach(a=>a.classList.remove("hl-term--active","hl-entity--active"));
+        sourceTextView.querySelectorAll(".hl-entity").forEach(el => {
+            el.addEventListener("click", () => {
+                sourceTextView.querySelectorAll(".hl-term--active,.hl-entity--active").forEach(a => a.classList.remove("hl-term--active", "hl-entity--active"));
                 el.classList.add("hl-entity--active");
                 showEntityDetail(el.dataset.entity);
             });
         });
     }
 
-    function highlightParagraph(text, termMap, entityNames){
+    function highlightParagraph(text, termMap, entityNames) {
         // Find entity positions
-        const entityPos=[];
-        for(const name of entityNames){
-            const re=new RegExp(escRe(name),"gi");
-            let m;while((m=re.exec(text))!==null){
-                const s=m.index,e=s+m[0].length;
-                if(!entityPos.some(p=>!(e<=p.start||s>=p.end)))
-                    entityPos.push({start:s,end:e,name,original:m[0]});
+        const entityPos = [];
+        for (const name of entityNames) {
+            const re = new RegExp(escRe(name), "gi");
+            let m; while ((m = re.exec(text)) !== null) {
+                const s = m.index, e = s + m[0].length;
+                if (!entityPos.some(p => !(e <= p.start || s >= p.end)))
+                    entityPos.push({ start: s, end: e, name, original: m[0] });
             }
         }
         // Find term positions (whole words) — sort entries longest-first
         // so "christmas tree rash" is matched before "rash"
-        const termEntries=Object.entries(termMap).sort((a,b)=>b[0].length-a[0].length);
-        const termPos=[];
-        for(const [surface,lemma] of termEntries){
-            const re=new RegExp("\\b"+escRe(surface)+"\\b","gi");
-            let m;while((m=re.exec(text))!==null){
-                const s=m.index,e=s+m[0].length;
-                if(!entityPos.some(p=>!(e<=p.start||s>=p.end))&&!termPos.some(p=>!(e<=p.start||s>=p.end)))
-                    termPos.push({start:s,end:e,lemma,original:m[0]});
+        const termEntries = Object.entries(termMap).sort((a, b) => b[0].length - a[0].length);
+        const termPos = [];
+        for (const [surface, lemma] of termEntries) {
+            const re = new RegExp("\\b" + escRe(surface) + "\\b", "gi");
+            let m; while ((m = re.exec(text)) !== null) {
+                const s = m.index, e = s + m[0].length;
+                if (!entityPos.some(p => !(e <= p.start || s >= p.end)) && !termPos.some(p => !(e <= p.start || s >= p.end)))
+                    termPos.push({ start: s, end: e, lemma, original: m[0] });
             }
         }
-        const all=[...entityPos.map(p=>({...p,type:"entity"})),...termPos.map(p=>({...p,type:"term"}))].sort((a,b)=>a.start-b.start);
-        let html="",cursor=0;
-        for(const pos of all){
-            if(pos.start<cursor)continue;
-            html+=esc(text.slice(cursor,pos.start));
-            if(pos.type==="term")
-                html+=`<span class="hl-term" data-lemma="${esc(pos.lemma)}" title="Click for translation">${esc(pos.original)}</span>`;
+        const all = [...entityPos.map(p => ({ ...p, type: "entity" })), ...termPos.map(p => ({ ...p, type: "term" }))].sort((a, b) => a.start - b.start);
+        let html = "", cursor = 0;
+        for (const pos of all) {
+            if (pos.start < cursor) continue;
+            html += esc(text.slice(cursor, pos.start));
+            if (pos.type === "term")
+                html += `<span class="hl-term" data-lemma="${esc(pos.lemma)}" title="Click for translation">${esc(pos.original)}</span>`;
             else
-                html+=`<span class="hl-entity" data-entity="${esc(pos.name)}" title="Click for research">${esc(pos.original)}</span>`;
-            cursor=pos.end;
+                html += `<span class="hl-entity" data-entity="${esc(pos.name)}" title="Click for research">${esc(pos.original)}</span>`;
+            cursor = pos.end;
         }
-        html+=esc(text.slice(cursor));
+        html += esc(text.slice(cursor));
         return html;
     }
 
     // === DETAIL PANELS ===
-    function showTermDetail(lemma){
-        const info=analysisData.terms[lemma];if(!info)return;
-        const chips=(info.translations||[]).map((t,i)=>`<span class="translation-chip ${i===0?"translation-chip--primary":""}">${esc(t)}</span>`).join("");
-        const meanEN=(info.meanings_en||[]).map(m=>`<li class="meaning-item"><span class="meaning-badge ${m.is_primary?"meaning-badge--primary":"meaning-badge--alt"}">${m.is_primary?"context":"alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
-        const meanTR=(info.meanings_tr||[]).map(m=>`<li class="meaning-item"><span class="meaning-badge ${m.is_primary?"meaning-badge--primary":"meaning-badge--alt"}">${m.is_primary?"context":"alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
-        const url=`https://www.google.com/search?q=${encodeURIComponent(lemma+" definition")}`;
+    function showTermDetail(lemma) {
+        const info = analysisData.terms[lemma]; if (!info) return;
+        const chips = (info.translations || []).map((t, i) => `<span class="translation-chip ${i === 0 ? "translation-chip--primary" : ""}">${esc(t)}</span>`).join("");
+        const meanEN = (info.meanings_en || []).map(m => `<li class="meaning-item"><span class="meaning-badge ${m.is_primary ? "meaning-badge--primary" : "meaning-badge--alt"}">${m.is_primary ? "context" : "alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
+        const meanTR = (info.meanings_tr || []).map(m => `<li class="meaning-item"><span class="meaning-badge ${m.is_primary ? "meaning-badge--primary" : "meaning-badge--alt"}">${m.is_primary ? "context" : "alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
+        const url = `https://www.google.com/search?q=${encodeURIComponent(lemma + " definition")}`;
 
-        detailAnchor.innerHTML=`
+        detailAnchor.innerHTML = `
         <div class="detail-panel">
             <button class="detail-panel__close" id="detail-close" title="Close">&times;</button>
             <div class="detail-panel__header">
@@ -351,12 +351,12 @@
         bindPanelEvents();
     }
 
-    function showEntityDetail(name){
-        const info=analysisData.entities[name];if(!info)return;
-        const bc={"Person":"person","Organization":"organization","Place":"place","Event":"event","Work of Art":"work","Group/Nationality":"group"}[info.label_display]||"person";
-        const url=`https://www.google.com/search?q=${encodeURIComponent(name)}`;
+    function showEntityDetail(name) {
+        const info = analysisData.entities[name]; if (!info) return;
+        const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group" }[info.label_display] || "person";
+        const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
 
-        detailAnchor.innerHTML=`
+        detailAnchor.innerHTML = `
         <div class="detail-panel">
             <button class="detail-panel__close" id="detail-close" title="Close">&times;</button>
             <div class="detail-panel__header">
@@ -376,34 +376,34 @@
         bindPanelEvents();
     }
 
-    function bindPanelEvents(){
-        $("detail-close").addEventListener("click",()=>{
-            detailAnchor.innerHTML="";
-            sourceTextView.querySelectorAll(".hl-term--active,.hl-entity--active").forEach(a=>a.classList.remove("hl-term--active","hl-entity--active"));
+    function bindPanelEvents() {
+        $("detail-close").addEventListener("click", () => {
+            detailAnchor.innerHTML = "";
+            sourceTextView.querySelectorAll(".hl-term--active,.hl-entity--active").forEach(a => a.classList.remove("hl-term--active", "hl-entity--active"));
         });
-        detailAnchor.querySelectorAll(".meaning-lang-btn").forEach(btn=>{
-            btn.addEventListener("click",()=>{
-                const lang=btn.dataset.lang;
-                detailAnchor.querySelectorAll(".meaning-lang-btn").forEach(b=>b.classList.toggle("meaning-lang-btn--active",b.dataset.lang===lang));
-                const en=$("meanings-en"),tr=$("meanings-tr");
-                if(en)en.style.display=lang==="en"?"":"none";
-                if(tr)tr.style.display=lang==="tr"?"":"none";
+        detailAnchor.querySelectorAll(".meaning-lang-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const lang = btn.dataset.lang;
+                detailAnchor.querySelectorAll(".meaning-lang-btn").forEach(b => b.classList.toggle("meaning-lang-btn--active", b.dataset.lang === lang));
+                const en = $("meanings-en"), tr = $("meanings-tr");
+                if (en) en.style.display = lang === "en" ? "" : "none";
+                if (tr) tr.style.display = lang === "tr" ? "" : "none";
             });
         });
-        detailAnchor.scrollIntoView({behavior:"smooth",block:"nearest"});
+        detailAnchor.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
     // === ENTITIES TAB ===
-    function renderEntities(entities){
-        entitiesContainer.innerHTML="";
-        const entries=Object.entries(entities);
-        if(!entries.length){entitiesContainer.innerHTML='<div style="text-align:center;padding:48px;color:var(--text-muted)">🔍 No named entities found.</div>';return}
-        entries.forEach(([name,info],idx)=>{
-            const card=document.createElement("div");card.classList.add("entity-card");
-            card.style.animationDelay=`${Math.min(idx*0.05,0.5)}s`;
-            const bc={"Person":"person","Organization":"organization","Place":"place","Event":"event","Work of Art":"work","Group/Nationality":"group"}[info.label_display]||"person";
-            const url=`https://www.google.com/search?q=${encodeURIComponent(name)}`;
-            card.innerHTML=`
+    function renderEntities(entities) {
+        entitiesContainer.innerHTML = "";
+        const entries = Object.entries(entities);
+        if (!entries.length) { entitiesContainer.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted)">🔍 No named entities found.</div>'; return }
+        entries.forEach(([name, info], idx) => {
+            const card = document.createElement("div"); card.classList.add("entity-card");
+            card.style.animationDelay = `${Math.min(idx * 0.05, 0.5)}s`;
+            const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group" }[info.label_display] || "person";
+            const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
+            card.innerHTML = `
                 <div class="entity-card__header">
                     <span class="entity-card__name">${esc(name)}</span>
                     <span class="entity-type-badge entity-type-badge--${bc}">${esc(info.label_display)}</span>
@@ -415,21 +415,21 @@
         });
     }
 
-    function switchTab(tab){
-        tabTerms.classList.toggle("tab--active",tab==="terms");
-        tabEntities.classList.toggle("tab--active",tab==="entities");
-        termsView.hidden=tab!=="terms";
-        entitiesContainer.hidden=tab!=="entities";
+    function switchTab(tab) {
+        tabTerms.classList.toggle("tab--active", tab === "terms");
+        tabEntities.classList.toggle("tab--active", tab === "entities");
+        termsView.hidden = tab !== "terms";
+        entitiesContainer.hidden = tab !== "entities";
     }
 
-    function showToast(msg,type="error"){
-        const t=document.createElement("div");t.className=`toast toast--${type}`;
-        t.innerHTML=(type==="error"?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-rose)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>':'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>')+`<span>${esc(msg)}</span>`;
-        toastContainer.appendChild(t);setTimeout(()=>{t.style.opacity="0";setTimeout(()=>t.remove(),300)},5000);
+    function showToast(msg, type = "error") {
+        const t = document.createElement("div"); t.className = `toast toast--${type}`;
+        t.innerHTML = (type === "error" ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-rose)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>' : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>') + `<span>${esc(msg)}</span>`;
+        toastContainer.appendChild(t); setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 300) }, 5000);
     }
 
-    function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
-    function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
+    function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML }
+    function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") }
 
     // ══════════════════════════════════════════════════════════════
     // EXERCISE MODULE
@@ -458,10 +458,10 @@
                     type: "multiple-choice",
                     text: "\"The first stage will cause a single, large '<strong>mother</strong>' or '<strong>herald</strong>' patch to appear.\"<br>Considering the target audience, which of the following is the most appropriate translation of this sentence?",
                     options: [
-                        "İlk etapta herald veya primer de denilen, büyük bir tane döküntü oluşur.",
-                        "İlk aşamada anne veya müjdeci plak da denilen büyük, tek bir döküntü görülür.",
-                        "İlk evrede birincil lezyon veya haberci plak da denilen büyük, tek bir döküntü ortaya çıkar.",
-                        "İlk evrede primer veya haberci plak da denilen büyük, tek bir döküntü ortaya çıkar."
+                        "İlk etapta '<strong>herald</strong>' veya '<strong>primer</strong>' de denilen, büyük bir tane döküntü oluşur.",
+                        "İlk aşamada '<strong>anne</strong>' veya '<strong>müjdeci plak</strong>' da denilen büyük, tek bir döküntü görülür.",
+                        "İlk evrede '<strong>birincil lezyon</strong>' veya '<strong>haberci plak</strong>' da denilen büyük, tek bir döküntü ortaya çıkar.",
+                        "İlk evrede '<strong>primer</strong>' veya '<strong>haberci plak</strong>' da denilen büyük, tek bir döküntü ortaya çıkar."
                     ],
                     correct: [2]
                 },
@@ -478,18 +478,18 @@
                 },
                 {
                     type: "multiple-select",
-                    text: "\"The patches can be found throughout the body, other than the face, soles of the feet, scalp, and palms.\"<br>What are the possible meanings of the word <strong>\"patch\"</strong> in the context of this text?<br><em>(You can select more than one option)</em>",
+                    text: "\"The '<strong>\patch\</strong>' can be found throughout the body, other than the face, soles of the feet, scalp, and palms.\"<br>What are the most appropriate possible translations of the word <strong>\"patch\"</strong> in the context of this text?<br><em>(You can select more than one option)</em>",
                     options: [
                         "Plak",
-                        "Yama",
+                        "Yara",
                         "Kızarıklık",
                         "Lezyon"
                     ],
-                    correct: [0, 1, 3]
+                    correct: [0, 3]
                 },
                 {
                     type: "true-false",
-                    text: "\"<strong><u>In the USA</u></strong>, about 50 percent of people with this skin condition experience itchiness, according to <strong><u>the American Academy of Dermatology (AAD)</u></strong>.\"<br>Is it correct to omit the underlined phrases without adding Turkish equivalents of data?",
+                    text: "\"<strong><u>In the USA</u></strong>, about 50 percent of people with this skin condition experience itchiness, according to <strong><u>the American Academy of Dermatology (AAD)</u></strong>.\"<br>Is it correct to translate the underlined parts as they are in this context?",
                     options: [
                         "Yes",
                         "No"
@@ -621,7 +621,7 @@
         q.options.forEach((opt, idx) => {
             const div = document.createElement("div");
             div.className = "quiz-option" + (isMulti ? " quiz-option--checkbox" : "");
-            div.textContent = opt;
+            div.innerHTML = opt;
             // Restore previous selection if navigating back
             if (exStudentAnswers[exCurrentQIndex].includes(idx)) {
                 div.classList.add("quiz-option--selected");
@@ -740,17 +740,17 @@
                 answersHTML = `
                     <div class="review-card__answer review-card__answer--correct-answer">
                         <span class="review-card__answer-label review-card__answer-label--correct">✓ Correct</span>
-                        <span>${esc(correctAnswerText)}</span>
+                        <span>${correctAnswerText}</span>
                     </div>`;
             } else {
                 answersHTML = `
                     <div class="review-card__answer review-card__answer--yours">
                         <span class="review-card__answer-label review-card__answer-label--yours">Your Answer</span>
-                        <span>${esc(yourAnswerText)}</span>
+                        <span>${yourAnswerText}</span>
                     </div>
                     <div class="review-card__answer review-card__answer--correct-answer">
                         <span class="review-card__answer-label review-card__answer-label--correct">Correct Answer</span>
-                        <span>${esc(correctAnswerText)}</span>
+                        <span>${correctAnswerText}</span>
                     </div>`;
             }
 
