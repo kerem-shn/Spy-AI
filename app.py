@@ -274,7 +274,7 @@ class SpyAICache:
                 conn.commit()
             except: pass
 
-cache = SpyAICache()
+cache = SpyAICache(db_path=os.environ.get("DATABASE_PATH", "spy_ai_cache.db"))
 
 # ---------------------------------------------------------------------------
 # Helpers — File Parsing
