@@ -568,7 +568,24 @@
                         Start Test
                     </button>
                 </div>`;
-            card.querySelector(".btn--primary").addEventListener("click", (e) => {
+
+            const btn = card.querySelector(".btn--primary");
+
+            // Check if already taken and mark card accordingly
+            fetch(`/api/has_taken/${test.id}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.taken) {
+                        btn.disabled = true;
+                        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Completed`;
+                        btn.style.background = "var(--accent-green, #22c55e)";
+                        btn.style.opacity = "0.8";
+                        btn.style.cursor = "not-allowed";
+                        card.style.opacity = "0.75";
+                    }
+                }).catch(() => {});
+
+            btn.addEventListener("click", (e) => {
                 e.stopPropagation();
                 startQuiz(test.id);
             });
@@ -576,9 +593,20 @@
         });
     }
 
-    function startQuiz(testId) {
+    async function startQuiz(testId) {
         const test = QUIZ_DATA.find(t => t.id === testId);
         if (!test) return;
+
+        // Check one-attempt rule
+        try {
+            const res = await fetch(`/api/has_taken/${testId}`);
+            const data = await res.json();
+            if (data.taken) {
+                showToast("You have already completed this test. Each test can only be taken once.", "error");
+                return;
+            }
+        } catch (e) { /* allow if check fails */ }
+
         exCurrentTestId = testId;
         exCurrentQIndex = 0;
         exStudentAnswers = test.questions.map(() => []);

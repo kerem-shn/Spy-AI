@@ -253,6 +253,15 @@ class SpyAICache:
             return cursor.fetchall()
         except: return []
 
+    def get_user_result(self, user_id, test_id):
+        try:
+            cursor = self._get_conn().cursor()
+            cursor.execute("""
+                SELECT id FROM quiz_results WHERE user_id=? AND test_id=?
+            """, (user_id, test_id))
+            return cursor.fetchone()
+        except: return None
+
     def get(self, category, key):
         try:
             cursor = self._get_conn().cursor()
@@ -1070,6 +1079,12 @@ def save_result():
     )
     return jsonify({"success": True})
 
+
+@app.route("/api/has_taken/<test_id>", methods=["GET"])
+@login_required
+def has_taken(test_id):
+    result = cache.get_user_result(current_user.id, test_id)
+    return jsonify({"taken": result is not None})
 
 
 @app.route("/upload", methods=["POST"])
