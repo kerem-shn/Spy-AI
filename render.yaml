@@ -2,7 +2,7 @@ services:
   - type: web
     name: spy-ai
     env: python
-    buildCommand: pip install -r requirements.txt && python -m spacy download en_core_web_sm
+    buildCommand: pip install -r requirements.txt && pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
     startCommand: gunicorn app:app --timeout 120 --workers 1
     envVars:
       - key: SECRET_KEY
