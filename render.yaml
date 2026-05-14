@@ -7,9 +7,3 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_PATH
-        value: /data/spy_ai_cache.db
-    disk:
-      name: spy-ai-data
-      mountPath: /data
-      sizeGB: 1
