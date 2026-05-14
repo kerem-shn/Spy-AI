@@ -7,8 +7,6 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true
-      - key: PYTHON_VERSION
-        value: 3.10.12
       - key: DATABASE_PATH
         value: /data/spy_ai_cache.db
     disk:
