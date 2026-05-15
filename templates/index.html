@@ -3,6 +3,14 @@
 
 <head>
     <style>
+        /* User Info Section (Global) */
+        .user-badge { display: flex; align-items: center; gap: 12px; margin-right: 12px; padding-right: 16px; border-right: 1px solid var(--border-subtle); }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-cyan); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.8rem; }
+        .user-meta { display: flex; flex-direction: column; line-height: 1.2; }
+        .user-name { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+        .user-role { font-size: 0.65rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+        .action-group { display: flex; align-items: center; gap: 8px; }
+
         @media(max-width:768px){
           /* Header Layout - 2 Rows */
           .header__inner { flex-direction: column !important; padding: 12px 14px 10px !important; gap: 14px !important; }
