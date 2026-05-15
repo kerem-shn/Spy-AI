@@ -764,18 +764,26 @@ def get_entity_summary(name: str, label: str) -> dict:
     Get a comprehensive summary for a named entity.
     Tries Wikipedia (EN + TR), then DuckDuckGo with multiple strategies.
     """
+    # 0. Check cache first to avoid redundant network calls
+    cached = cache.get("entity", name)
+    if cached:
+        logger.info(f"Entity cache hit: {name}")
+        return cached
+
     # 1. Check for manual definition overrides first (bypasses Wikipedia/Cache)
     override_key = name.lower().strip()
     if override_key in DEFINITION_OVERRIDES:
         val = DEFINITION_OVERRIDES[override_key]
         # Handle list of definitions if provided for an entity
         summary_text = val[0] if isinstance(val, list) else val
-        return {
+        result = {
             "label": label,
             "label_display": ENTITY_LABEL_DISPLAY.get(label, label),
             "summary": summary_text,
             "source": "Custom Definition",
         }
+        cache.set("entity", name, result)
+        return result
 
     summary = ""
     source = ""
@@ -1029,11 +1037,37 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None):
     yield send("status", "Researching entities...")
     with ThreadPoolExecutor(max_workers=5) as executor:
         def process_ent(ent):
-            return {"name": ent["name"], "summary": get_entity_summary(ent["name"], ent["label"])}
+            try:
+                return {"name": ent["name"], "summary": get_entity_summary(ent["name"], ent["label"])}
+            except Exception as e:
+                logger.error(f"Entity research failed for '{ent['name']}': {e}")
+                return {
+                    "name": ent["name"],
+                    "summary": {
+                        "label": ent["label"],
+                        "label_display": ENTITY_LABEL_DISPLAY.get(ent["label"], ent["label"]),
+                        "summary": "Information could not be retrieved at this time.",
+                        "source": "N/A",
+                    }
+                }
         
         futures = [executor.submit(process_ent, ent) for ent in entities_to_research]
         for future in futures:
-            yield send("entity", future.result())
+            try:
+                result = future.result(timeout=30)
+                yield send("entity", result)
+            except Exception as e:
+                logger.error(f"Entity future failed: {e}")
+                # Still send a placeholder so the frontend counter stays correct
+                yield send("entity", {
+                    "name": "Unknown Entity",
+                    "summary": {
+                        "label": "ORG",
+                        "label_display": "Organization",
+                        "summary": "Information could not be retrieved.",
+                        "source": "N/A",
+                    }
+                })
 
     yield send("done", "Analysis complete.")
 
