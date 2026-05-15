@@ -780,36 +780,47 @@
         resultsReview.innerHTML = "";
         test.questions.forEach((q, idx) => {
             const studentAns = exStudentAnswers[idx];
-            const studentSorted = [...studentAns].sort().join(",");
-            const correctSorted = [...q.correct].sort().join(",");
-            const isCorrect = studentSorted === correctSorted;
+            const correctAns = q.correct;
+            
+            let qScore = 0;
+            if (q.type === "multiple-select" && correctAns.length > 1) {
+                const correctPicks = studentAns.filter(i => correctAns.includes(i)).length;
+                const wrongPicks   = studentAns.filter(i => !correctAns.includes(i)).length;
+                qScore = Math.max(0, (correctPicks - wrongPicks) / correctAns.length);
+            } else {
+                const stu = [...studentAns].sort().join(",");
+                const cor = [...correctAns].sort().join(",");
+                if (stu === cor) qScore = 1;
+            }
+
+            const state = qScore === 1 ? "correct" : (qScore > 0 ? "partial" : "incorrect");
+            const label = qScore === 1 ? "✓ Correct" : (qScore > 0 ? "⚠ Partial" : "✗ Incorrect");
 
             const card = document.createElement("div");
-            card.className = `review-card ${isCorrect ? "review-card--correct" : "review-card--incorrect"}`;
+            card.className = `review-card review-card--${state}`;
             card.style.animationDelay = `${idx * 0.08}s`;
 
             const yourAnswerText = studentAns.length > 0
                 ? studentAns.map(i => q.options[i]).join(", ")
                 : "No answer";
             const correctAnswerText = q.correct.map(i => q.options[i]).join(", ");
-
             const plainQ = q.text.replace(/<[^>]+>/g, '');
 
-            let answersHTML = "";
-            if (isCorrect) {
+            let answersHTML = `
+                <div class="review-card__answer review-card__answer--yours">
+                    <span class="review-card__answer-label review-card__answer-label--yours">Your Answer</span>
+                    <span>${yourAnswerText}</span>
+                </div>
+                <div class="review-card__answer review-card__answer--correct-answer">
+                    <span class="review-card__answer-label review-card__answer-label--correct">Correct Answer</span>
+                    <span>${correctAnswerText}</span>
+                </div>`;
+            
+            // If 100% correct, just show one "Correct" block to be cleaner
+            if (qScore === 1) {
                 answersHTML = `
                     <div class="review-card__answer review-card__answer--correct-answer">
                         <span class="review-card__answer-label review-card__answer-label--correct">✓ Correct</span>
-                        <span>${correctAnswerText}</span>
-                    </div>`;
-            } else {
-                answersHTML = `
-                    <div class="review-card__answer review-card__answer--yours">
-                        <span class="review-card__answer-label review-card__answer-label--yours">Your Answer</span>
-                        <span>${yourAnswerText}</span>
-                    </div>
-                    <div class="review-card__answer review-card__answer--correct-answer">
-                        <span class="review-card__answer-label review-card__answer-label--correct">Correct Answer</span>
                         <span>${correctAnswerText}</span>
                     </div>`;
             }
@@ -817,9 +828,7 @@
             card.innerHTML = `
                 <div class="review-card__header">
                     <span class="review-card__num">Q${idx + 1}</span>
-                    <span class="review-card__result ${isCorrect ? "review-card__result--correct" : "review-card__result--incorrect"}">
-                        ${isCorrect ? "✓ Correct" : "✗ Incorrect"}
-                    </span>
+                    <span class="review-card__result review-card__result--${state}">${label}</span>
                 </div>
                 <div class="review-card__question">${esc(plainQ)}</div>
                 <div class="review-card__answers">${answersHTML}</div>`;

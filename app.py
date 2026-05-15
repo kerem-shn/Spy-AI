@@ -1121,6 +1121,37 @@ def dashboard():
     in_progress = cache.get_all_progress()
     return render_template("dashboard.html", results=results, in_progress=in_progress)
 
+@app.route("/api/teacher/data")
+@login_required
+def teacher_data():
+    if current_user.role != "teacher":
+        return jsonify({"error": "Forbidden"}), 403
+    
+    results = cache.get_all_results()
+    in_progress = cache.get_all_progress()
+    
+    # Process results into a cleaner JSON list
+    completed_list = []
+    for r in results:
+        # Score is already saved as pct (0-100) in my latest fix
+        pct = r[3] if r[4] == 100 else round((r[3] / r[4]) * 100)
+        completed_list.append({
+            "id": r[0], "name": r[1], "test_id": r[2],
+            "score": pct, "timestamp": r[5]
+        })
+    
+    active_list = []
+    for p in in_progress:
+        active_list.append({
+            "name": p[0], "identifier": p[1], "test_id": p[2],
+            "question_index": p[3], "total": p[4], "updated_at": p[5]
+        })
+        
+    return jsonify({
+        "completed": completed_list,
+        "in_progress": active_list
+    })
+
 @app.route("/api/save_result", methods=["POST"])
 @login_required
 def save_result():
