@@ -83,9 +83,13 @@ wikipedia.set_lang("en")
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "spy-ai-super-secret-key-123")
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
+login_manager.session_protection = "strong" # Bind session to IP/UA
 login_manager.init_app(app)
 
 class User(UserMixin):
@@ -119,6 +123,8 @@ def add_header(response):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
+    # Crucial: Tell CDNs that the response varies by the cookie
+    response.headers["Vary"] = "Cookie"
     return response
 
 # ---------------------------------------------------------------------------
