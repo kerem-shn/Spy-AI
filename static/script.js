@@ -29,6 +29,18 @@
         applyAccent(localStorage.getItem("spyai_accent") || "default");
         applyPanelPos(localStorage.getItem("spyai_panelpos") || "bottom");
         bindEvents();
+        // Restore analysis from sessionStorage if page was refreshed
+        try {
+            const saved = sessionStorage.getItem("spyai_analysis");
+            if (saved) {
+                analysisData = JSON.parse(saved);
+                initResultsUI();
+                renderEntities(analysisData.entities);
+                incrementalRender();
+                updateStats();
+                showToast("Analysis restored after refresh.", "success");
+            }
+        } catch(e) {}
     }
 
     function bindEvents() {
@@ -110,6 +122,7 @@
         uploadSection.style.display = "none"; loadingSection.hidden = false; resultsSection.hidden = true;
         loadingStatus.textContent = "Connecting...";
         loadingBarFill.style.width = "5%";
+        sessionStorage.removeItem("spyai_analysis");
 
         const fd = new FormData(); fd.append("file", selectedFile); fd.append("direction", currentDirection);
         const key = deeplKeyInput.value.trim(); if (key) fd.append("deepl_key", key);
@@ -178,6 +191,8 @@
             case "done":
                 loadingBarFill.style.width = "100%";
                 showToast("Analysis complete!", "success");
+                // Persist results so F5 doesn't wipe them
+                try { sessionStorage.setItem("spyai_analysis", JSON.stringify(analysisData)); } catch(e){}
                 break;
             case "error":
                 showToast(payload, "error");
@@ -716,12 +731,23 @@
         hideAllSections();
         exerciseResults.hidden = false;
 
+        // Partial-credit scoring:
+        // For multiple-select, award (correct_picks / total_correct) per question.
+        // Round up the final total so e.g. 4.5 → 5.
         let correctCount = 0;
         test.questions.forEach((q, idx) => {
-            const student = [...exStudentAnswers[idx]].sort().join(",");
-            const correct = [...q.correct].sort().join(",");
-            if (student === correct) correctCount++;
+            const studentAns = exStudentAnswers[idx];
+            const correctAns = q.correct;
+            if (q.type === "multiple-select" && correctAns.length > 1) {
+                const correctPicks = studentAns.filter(i => correctAns.includes(i)).length;
+                correctCount += correctPicks / correctAns.length;
+            } else {
+                const stu = [...studentAns].sort().join(",");
+                const cor = [...correctAns].sort().join(",");
+                if (stu === cor) correctCount++;
+            }
         });
+        correctCount = Math.ceil(correctCount);
 
         const pct = Math.round((correctCount / test.questions.length) * 100);
 
@@ -748,6 +774,8 @@
                 answers: exStudentAnswers
             })
         }).catch(err => console.error("Failed to save quiz result", err));
+        // Clear live progress so teacher doesn't see a stuck bar
+        fetch("/api/clear_progress", { method: "POST" }).catch(() => {});
 
         resultsReview.innerHTML = "";
         test.questions.forEach((q, idx) => {

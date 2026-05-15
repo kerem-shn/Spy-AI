@@ -4,13 +4,60 @@
 <head>
     <style>
         @media(max-width:768px){
-          .header__inner{padding:12px 16px}.header__title{font-size:1.3rem}
+          /* Header */
+          .header__inner{padding:10px 14px;gap:8px;flex-wrap:wrap}
+          .header__title{font-size:1.1rem}
+          .header__tagline{display:none}
+          .header__brand{gap:8px}
+          .header__logo svg{width:28px;height:28px}
+          .header__actions{gap:6px;flex-wrap:wrap}
+          .header__actions .btn{font-size:0.72rem;padding:5px 8px}
+          /* Shrink avatar to save space */
+          .user-badge{gap:6px;padding-right:10px}
+          .user-badge > div:first-child{width:26px!important;height:26px!important;font-size:.7rem!important}
+          .user-badge > div:last-child > span:first-child{font-size:.75rem}
+          .user-badge > div:last-child > span:last-child{font-size:.6rem}
+
+          /* Main padding */
           .settings-panel__inner{flex-direction:column;gap:16px;padding:16px}
-          .main{padding:20px 16px 48px}.upload-zone{padding:40px 20px}
-          .source-text-view{padding:18px 20px;font-size:.88rem}.detail-panel{padding:18px}
+          .main{padding:16px 14px 48px}
+          .upload-zone{padding:40px 16px}
+          .source-text-view{padding:18px 16px;font-size:.88rem}.detail-panel{padding:18px}
           .results-layout[data-panel-pos="right"],.results-layout[data-panel-pos="left"]{flex-direction:column}
           .results-layout[data-panel-pos="right"] #detail-panel-anchor,
-          .results-layout[data-panel-pos="left"] #detail-panel-anchor{width:380px;flex-shrink:0;position:sticky;top:70px;align-self:flex-start;max-height:80vh;overflow-y:auto}
+          .results-layout[data-panel-pos="left"] #detail-panel-anchor{width:100%;flex-shrink:0}
+
+          /* Quiz top bar — keep title and counter on same row */
+          .quiz-top-bar{
+            display:grid;
+            grid-template-columns:auto 1fr auto;
+            align-items:center;
+            gap:8px;
+            padding:12px 14px;
+          }
+          .quiz-top-bar__title{
+            font-size:0.82rem;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            text-align:center;
+          }
+          .quiz-top-bar__progress{font-size:0.82rem;white-space:nowrap}
+
+          /* Quiz card */
+          .quiz-question-card{padding:20px 16px;margin:0 0 16px}
+          .quiz-question-card__text{font-size:.93rem;line-height:1.65}
+          .quiz-option{padding:12px 14px;font-size:.88rem}
+
+          /* Quiz actions */
+          .quiz-actions{gap:8px}
+          .quiz-actions .btn{flex:1;justify-content:center;font-size:.85rem;padding:10px 12px}
+
+          /* Exercise cards */
+          .exercise-grid{grid-template-columns:1fr}
+          .exercise-header{padding:20px 16px 16px}
+        }
+
+        @media(max-width:420px){
+          .header__actions .btn--ghost:not(#exercise-toggle){display:none}
         }
     </style>
     <meta charset="UTF-8">

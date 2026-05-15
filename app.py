@@ -118,12 +118,12 @@ ENTITY_LABEL_DISPLAY = {
 # These bypass the translation engine for known medical/dermatology terms.
 # ---------------------------------------------------------------------------
 TRANSLATION_OVERRIDES = {
-    "christmas tree rash": ["Madalyon Hastalığı"],
+    "christmas tree rash": ["Madalyon Hastalığı", "Gül Hastalığı"],
     "mother patch":  ["birincil lezyon", "ilk lezyon", "madalyon plak", "primer plak"],
     "herald patch":  ["haberci plak", "öncü plak"],
     "daughter patch": ["ikincil lezyon", "artçı plak", "sekonder plak"],
     "patch":          ["plak", "lezyon", "yama"],
-    "pityriasis rosea": ["Pitiriyazis Rozea", "Gül Hastalığı"],
+    "pityriasis rosea": ["Pitiriyazis Rozea"],
     "skin rash": ["deri döküntüsü", "cilt döküntüsü"],
     "abdomen": ["karın", "batın"],
     "scalp": ["kafa derisi", "saç derisi"],
@@ -149,7 +149,7 @@ DEFINITION_OVERRIDES = {
     "soles": ["the underside of the foot from the heel to the toes", "the bottom of a shoe"],
     "headache": ["pain in the head caused by dilation of cerebral arteries or muscle contractions or a reaction to drugs", "something or someone that causes anxiety; a source of unhappiness."],
     "patch": ["a small area of skin that is different from the skin around it", "a piece of material used to mend or cover a hole"],
-    "board-certified": ""
+    "board-certified": ["kurul onaylı", "sertifikalı"]
 }
 
 class SpyAICache:
@@ -302,6 +302,15 @@ class SpyAICache:
             """)
             return cursor.fetchall()
         except: return []
+
+    def delete_progress(self, user_id):
+        try:
+            with self._lock:
+                conn = sqlite3.connect(self.db_path)
+                conn.execute("DELETE FROM quiz_progress WHERE user_id=?", (user_id,))
+                conn.commit()
+                conn.close()
+        except: pass
 
     def get(self, category, key):
         try:
@@ -1156,6 +1165,13 @@ def student_progress():
         "name": r[0], "identifier": r[1], "test_id": r[2],
         "question_index": r[3], "total": r[4], "updated_at": r[5]
     } for r in rows])
+
+
+@app.route("/api/clear_progress", methods=["POST"])
+@login_required
+def clear_progress():
+    cache.delete_progress(current_user.id)
+    return jsonify({"success": True})
 
 
 @app.route("/upload", methods=["POST"])
