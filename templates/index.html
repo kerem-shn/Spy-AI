@@ -20,8 +20,9 @@
           .header__actions { width: 100% !important; justify-content: space-between !important; align-items: center !important; gap: 8px !important; flex-direction: row !important; }
           
           /* Action Group */
-          .action-group { display: flex; gap: 8px; flex: 1; align-items: center; }
-          .action-btn { font-size: 0.75rem !important; padding: 8px 12px !important; flex: 1; justify-content: center; }
+          .action-group { display: flex; gap: 6px; flex: 1; align-items: center; }
+          .action-btn { font-size: 0.68rem !important; padding: 8px 10px !important; flex: 1; justify-content: center; gap: 4px !important; }
+          .action-btn svg { width: 14px; height: 14px; }
           .logout-btn { flex: 0 0 auto; padding: 8px 10px !important; }
 
           /* Main padding */
@@ -42,9 +43,8 @@
           .exercise-grid { grid-template-columns: 1fr; }
         }
 
-        @media(max-width:480px){
-          .action-btn span { display: none !important; } /* Icon only on very small screens */
-          .action-btn { padding: 10px !important; }
+        @media(max-width:400px){
+          .action-btn { padding: 8px 6px !important; letter-spacing: -0.01em; }
         }
 
 
