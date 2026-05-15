@@ -57,7 +57,8 @@
         }
 
         @media(max-width:420px){
-          .header__actions .btn--ghost:not(#exercise-toggle){display:none}
+          /* On very small screens, hide only the logout button in the header to save space */
+          .header__actions a[href="/logout"]{ display:none }
         }
     </style>
     <meta charset="UTF-8">

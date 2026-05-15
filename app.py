@@ -259,7 +259,7 @@ class SpyAICache:
                        quiz_results.timestamp, quiz_results.answers_json
                 FROM quiz_results
                 JOIN users ON users.id = quiz_results.user_id
-                ORDER BY quiz_results.timestamp DESC
+                ORDER BY quiz_results.score DESC, quiz_results.timestamp DESC
             """)
             return cursor.fetchall()
         except: return []

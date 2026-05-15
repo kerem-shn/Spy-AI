@@ -731,27 +731,25 @@
         hideAllSections();
         exerciseResults.hidden = false;
 
-        // Precise scoring:
-        // For multiple-select: award (correctPicks - wrongPicks) / totalCorrect per question.
-        // Wrong picks cancel correct ones so selecting one right + one wrong = 0 points.
-        // Use Math.round for the final total (e.g. 4.5 → 5, 4.4 → 4).
-        let correctCount = 0;
+        // Scoring — calculated as a percentage out of 100, no integer rounding on raw score.
+        // Multiple-select: (correctPicks - wrongPicks) / totalCorrect per question (min 0).
+        // Wrong picks cancel correct ones: 1 right + 1 wrong out of 2 correct = 0 pts.
+        let rawScore = 0;
         test.questions.forEach((q, idx) => {
             const studentAns = exStudentAnswers[idx];
             const correctAns = q.correct;
             if (q.type === "multiple-select" && correctAns.length > 1) {
                 const correctPicks = studentAns.filter(i => correctAns.includes(i)).length;
                 const wrongPicks   = studentAns.filter(i => !correctAns.includes(i)).length;
-                correctCount += Math.max(0, (correctPicks - wrongPicks) / correctAns.length);
+                rawScore += Math.max(0, (correctPicks - wrongPicks) / correctAns.length);
             } else {
                 const stu = [...studentAns].sort().join(",");
                 const cor = [...correctAns].sort().join(",");
-                if (stu === cor) correctCount++;
+                if (stu === cor) rawScore++;
             }
         });
-        correctCount = Math.round(correctCount);
-
-        const pct = Math.round((correctCount / test.questions.length) * 100);
+        // Convert to /100 scale without rounding the raw float first
+        const pct = Math.round((rawScore / test.questions.length) * 100);
 
         const circumference = 2 * Math.PI * 52;
         const offset = circumference - (pct / 100) * circumference;
@@ -764,15 +762,15 @@
         });
 
         resultsScorePct.textContent = pct + "%";
-        resultsScoreDetail.textContent = `${correctCount} of ${test.questions.length} correct`;
+        resultsScoreDetail.textContent = `${pct} / 100`;
 
         fetch("/api/save_result", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 test_id: test.id,
-                score: correctCount,
-                total: test.questions.length,
+                score: pct,
+                total: 100,
                 answers: exStudentAnswers
             })
         }).catch(err => console.error("Failed to save quiz result", err));

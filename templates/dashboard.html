@@ -13,7 +13,6 @@
         .dashboard-header { margin-bottom: 36px; }
         .dashboard-title { font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, var(--grad-start), var(--grad-end)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
 
-        /* ── Unified Table ── */
         .results-table-container {
             background: var(--bg-card); backdrop-filter: blur(12px);
             border: 1px solid var(--border-subtle); border-radius: 20px;
@@ -21,46 +20,35 @@
         }
         .results-table { width: 100%; border-collapse: collapse; text-align: left; }
         .results-table th {
-            padding: 16px 24px; background: rgba(0,0,0,0.03);
+            padding: 14px 24px; background: rgba(0,0,0,0.03);
             font-size: 0.78rem; text-transform: uppercase;
             letter-spacing: 0.06em; color: var(--text-muted);
             border-bottom: 1px solid var(--border-subtle);
         }
         .results-table td {
-            padding: 15px 24px; border-bottom: 1px solid var(--border-subtle);
-            font-size: 0.95rem; color: var(--text-primary); vertical-align: middle;
+            padding: 14px 24px; border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.93rem; color: var(--text-primary); vertical-align: middle;
         }
         .results-table tr:last-child td { border-bottom: none; }
-        .results-table tr:hover td { background: rgba(0,212,255,0.02); }
-
-        /* Rank badge */
-        .rank-badge {
-            width: 28px; height: 28px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 0.78rem;
-        }
-        .rank-badge--1 { background: linear-gradient(135deg,#ffd700,#f59e0b); color: #fff; }
-        .rank-badge--2 { background: linear-gradient(135deg,#c0c0c0,#94a3b8); color: #fff; }
-        .rank-badge--3 { background: linear-gradient(135deg,#cd7f32,#b45309); color: #fff; }
-        .rank-badge--n { background: rgba(0,0,0,0.06); color: var(--text-muted); }
+        .results-table tr:hover td { background: rgba(0,212,255,0.02); transition: background .15s; }
 
         /* Score pills */
         .score-pill {
             padding: 4px 12px; border-radius: 20px;
             font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
         }
-        .score-pill--high { background: rgba(16,185,129,0.1); color: var(--accent-green); }
-        .score-pill--mid  { background: rgba(245,158,11,0.1);  color: var(--accent-amber); }
-        .score-pill--low  { background: rgba(244,63,94,0.1);   color: var(--accent-rose); }
+        .score-pill--high { background: rgba(16,185,129,0.1); color: var(--accent-green,#10b981); }
+        .score-pill--mid  { background: rgba(245,158,11,0.1);  color: var(--accent-amber,#f59e0b); }
+        .score-pill--low  { background: rgba(244,63,94,0.1);   color: var(--accent-rose,#f43f5e); }
 
-        /* In-progress row styles */
-        .progress-row td { background: rgba(0,212,255,0.02); }
+        /* In-progress */
+        .progress-row td { background: rgba(0,212,255,0.015); }
         .in-progress-label {
             display: inline-flex; align-items: center; gap: 6px;
             background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2);
             border-radius: 20px; padding: 3px 10px;
-            font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan, #00d4ff);
-            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem; font-weight: 700; color: var(--accent-cyan,#00d4ff);
+            font-family: 'JetBrains Mono', monospace; white-space: nowrap;
         }
         .live-dot {
             width: 6px; height: 6px; border-radius: 50%; background: var(--accent-cyan,#00d4ff);
@@ -71,43 +59,42 @@
             50%{ opacity:.6; box-shadow:0 0 0 4px rgba(0,212,255,0); }
         }
         .mini-bar-wrap {
-            width: 90px; height: 5px; background: rgba(0,0,0,0.07);
-            border-radius: 100px; overflow: hidden; display: inline-block;
-            vertical-align: middle; margin-left: 8px;
+            display: inline-block; vertical-align: middle;
+            width: 80px; height: 5px; background: rgba(0,0,0,0.07);
+            border-radius: 100px; overflow: hidden; margin-left: 10px;
         }
         .mini-bar-inner {
             height: 100%; border-radius: 100px;
             background: linear-gradient(90deg, var(--accent-cyan,#00d4ff), var(--accent-purple,#7c3aed));
-            transition: width .5s ease;
         }
 
-        /* Section divider */
+        /* Section divider row */
         .section-divider td {
-            padding: 10px 24px; background: rgba(0,0,0,0.02);
-            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.08em; color: var(--text-muted);
+            padding: 8px 24px;
+            background: rgba(0,0,0,0.025);
+            font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.09em;
+            color: var(--text-muted);
             border-bottom: 1px solid var(--border-subtle);
         }
 
         .student-info { display: flex; flex-direction: column; }
-        .student-id { font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
-
+        .student-id { font-size: 0.7rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
         .empty-state { text-align: center; padding: 60px 24px; color: var(--text-muted); }
 
-        /* ── Mobile ── */
+        /* Mobile */
         @media (max-width: 768px) {
             .dashboard-main { padding: 20px 12px; }
             .dashboard-title { font-size: 1.5rem; }
             .results-table thead { display: none; }
-            .results-table, .results-table tbody, .results-table tr, .results-table td { display: block; width: 100%; }
+            .results-table, .results-table tbody, .results-table tr, .results-table td { display: block; width: 100%; box-sizing: border-box; }
             .results-table tr { padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
-            .results-table td { padding: 3px 0; border-bottom: none; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; }
-            .results-table td::before { font-weight: 700; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); flex-shrink: 0; margin-right: 8px; }
-            .results-table td:nth-child(1)::before { content: '#'; }
-            .results-table td:nth-child(2)::before { content: 'Student'; }
-            .results-table td:nth-child(3)::before { content: 'Test'; }
-            .results-table td:nth-child(4)::before { content: 'Score'; }
-            .results-table td:nth-child(5)::before { content: 'Date'; }
+            .results-table td { padding: 3px 0; border: none; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; }
+            .results-table td::before { font-weight: 700; font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); margin-right: 8px; flex-shrink: 0; }
+            .results-table td:nth-child(1)::before { content: 'Student'; }
+            .results-table td:nth-child(2)::before { content: 'Test'; }
+            .results-table td:nth-child(3)::before { content: 'Score'; }
+            .results-table td:nth-child(4)::before { content: 'Date'; }
             .section-divider td { display: block; }
         }
     </style>
@@ -145,30 +132,23 @@
             <p style="color:var(--text-secondary)">Pityriasis Rosea — Translation Exercise Results</p>
         </div>
 
-        <div class="results-table-container" id="results-container">
+        <div class="results-table-container">
             {% if results or in_progress %}
-            <table class="results-table" id="results-table">
+            <table class="results-table">
                 <thead>
                     <tr>
-                        <th style="width:48px">#</th>
                         <th>Student</th>
                         <th>Test</th>
                         <th>Score</th>
                         <th>Date &amp; Time</th>
                     </tr>
                 </thead>
-                <tbody id="results-body">
+                <tbody>
                     {% if results %}
-                    <tr class="section-divider"><td colspan="5">✓ Completed</td></tr>
+                    <tr class="section-divider"><td colspan="4">✓ Completed — sorted by score</td></tr>
                     {% for res in results %}
-                    {% set pct = (res[3] / res[4] * 100) | round | int %}
-                    {% set rank = loop.index %}
+                    {% set pct = res[3] if res[4] == 100 else (res[3] / res[4] * 100) | round | int %}
                     <tr>
-                        <td>
-                            <div class="rank-badge {% if rank == 1 %}rank-badge--1{% elif rank == 2 %}rank-badge--2{% elif rank == 3 %}rank-badge--3{% else %}rank-badge--n{% endif %}">
-                                {{ rank }}
-                            </div>
-                        </td>
                         <td>
                             <div class="student-info">
                                 <strong>{{ res[1] }}</strong>
@@ -178,7 +158,7 @@
                         <td><code style="font-family:'JetBrains Mono';font-size:0.78rem">{{ res[2] }}</code></td>
                         <td>
                             <span class="score-pill {% if pct >= 80 %}score-pill--high{% elif pct >= 50 %}score-pill--mid{% else %}score-pill--low{% endif %}">
-                                {{ res[3] }} / {{ res[4] }} &nbsp;({{ pct }}%)
+                                {{ pct }} / 100
                             </span>
                         </td>
                         <td style="color:var(--text-muted);font-size:0.82rem">{{ res[5] }}</td>
@@ -187,11 +167,10 @@
                     {% endif %}
 
                     {% if in_progress %}
-                    <tr class="section-divider"><td colspan="5">⏳ In Progress</td></tr>
+                    <tr class="section-divider"><td colspan="4">⏳ In Progress</td></tr>
                     {% for p in in_progress %}
                     {% set ppct = ((p[3] / p[4]) * 100) | round | int if p[4] > 0 else 0 %}
                     <tr class="progress-row">
-                        <td><div class="rank-badge rank-badge--n">—</div></td>
                         <td>
                             <div class="student-info">
                                 <strong>{{ p[0] }}</strong>
@@ -201,8 +180,7 @@
                         <td><code style="font-family:'JetBrains Mono';font-size:0.78rem">{{ p[2] }}</code></td>
                         <td>
                             <span class="in-progress-label">
-                                <span class="live-dot"></span>
-                                Q{{ p[3] }}/{{ p[4] }}
+                                <span class="live-dot"></span>Q{{ p[3] }}/{{ p[4] }}
                             </span>
                             <span class="mini-bar-wrap">
                                 <span class="mini-bar-inner" style="width:{{ ppct }}%"></span>
@@ -223,15 +201,14 @@
                     <line x1="16" y1="17" x2="8" y2="17"></line>
                 </svg>
                 <h3>No activity yet</h3>
-                <p>Results will appear here once students start or complete an exercise.</p>
+                <p>Results will appear once students start or complete an exercise.</p>
             </div>
             {% endif %}
         </div>
     </main>
 
 <script>
-// Auto-refresh the page every 10s to pick up new in-progress rows from server
-// (lightweight — the server does all the work, no client-side polling needed)
+// Reload every 10s to pick up new in-progress rows
 setInterval(() => location.reload(), 10000);
 </script>
 </body>
