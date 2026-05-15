@@ -1117,9 +1117,9 @@ def index():
 def dashboard():
     if current_user.role != "teacher":
         return redirect(url_for("index"))
-    
     results = cache.get_all_results()
-    return render_template("dashboard.html", results=results)
+    in_progress = cache.get_all_progress()
+    return render_template("dashboard.html", results=results, in_progress=in_progress)
 
 @app.route("/api/save_result", methods=["POST"])
 @login_required

@@ -731,23 +731,25 @@
         hideAllSections();
         exerciseResults.hidden = false;
 
-        // Partial-credit scoring:
-        // For multiple-select, award (correct_picks / total_correct) per question.
-        // Round up the final total so e.g. 4.5 → 5.
+        // Precise scoring:
+        // For multiple-select: award (correctPicks - wrongPicks) / totalCorrect per question.
+        // Wrong picks cancel correct ones so selecting one right + one wrong = 0 points.
+        // Use Math.round for the final total (e.g. 4.5 → 5, 4.4 → 4).
         let correctCount = 0;
         test.questions.forEach((q, idx) => {
             const studentAns = exStudentAnswers[idx];
             const correctAns = q.correct;
             if (q.type === "multiple-select" && correctAns.length > 1) {
                 const correctPicks = studentAns.filter(i => correctAns.includes(i)).length;
-                correctCount += correctPicks / correctAns.length;
+                const wrongPicks   = studentAns.filter(i => !correctAns.includes(i)).length;
+                correctCount += Math.max(0, (correctPicks - wrongPicks) / correctAns.length);
             } else {
                 const stu = [...studentAns].sort().join(",");
                 const cor = [...correctAns].sort().join(",");
                 if (stu === cor) correctCount++;
             }
         });
-        correctCount = Math.ceil(correctCount);
+        correctCount = Math.round(correctCount);
 
         const pct = Math.round((correctCount / test.questions.length) * 100);
 
