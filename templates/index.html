@@ -4,62 +4,49 @@
 <head>
     <style>
         @media(max-width:768px){
-          /* Header */
-          .header__inner{padding:10px 14px;gap:8px;flex-wrap:wrap}
-          .header__title{font-size:1.1rem}
-          .header__tagline{display:none}
-          .header__brand{gap:8px}
-          .header__logo svg{width:28px;height:28px}
-          .header__actions{gap:6px;flex-wrap:wrap}
-          .header__actions .btn{font-size:0.72rem;padding:5px 8px}
-          /* Shrink avatar to save space */
-          .user-badge{gap:6px;padding-right:10px}
-          .user-badge > div:first-child{width:26px!important;height:26px!important;font-size:.7rem!important}
-          .user-badge > div:last-child > span:first-child{font-size:.75rem}
-          .user-badge > div:last-child > span:last-child{font-size:.6rem}
+          /* Header Layout - 2 Rows */
+          .header__inner { flex-direction: column !important; padding: 12px 14px 10px !important; gap: 14px !important; }
+          .header__brand { width: 100%; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; }
+          .header__title { font-size: 1.15rem; }
+          .header__tagline { display: none; }
+          
+          /* User Badge */
+          .user-badge { border: none !important; padding: 0 !important; margin: 0 !important; gap: 8px !important; display: flex; align-items: center; }
+          .user-avatar { width: 28px !important; height: 28px !important; font-size: 0.75rem !important; border-radius: 50%; background: var(--accent-cyan); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+          .user-meta { line-height: 1.1 !important; display: flex; flex-direction: column; }
+          .user-name { font-size: 0.8rem !important; font-weight: 700; color: var(--text-primary); }
+          .user-role { font-size: 0.6rem !important; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+
+          .header__actions { width: 100% !important; justify-content: space-between !important; align-items: center !important; gap: 8px !important; flex-direction: row !important; }
+          
+          /* Action Group */
+          .action-group { display: flex; gap: 8px; flex: 1; align-items: center; }
+          .action-btn { font-size: 0.75rem !important; padding: 8px 12px !important; flex: 1; justify-content: center; }
+          .logout-btn { flex: 0 0 auto; padding: 8px 10px !important; }
 
           /* Main padding */
-          .settings-panel__inner{flex-direction:column;gap:16px;padding:16px}
-          .main{padding:16px 14px 48px}
-          .upload-zone{padding:40px 16px}
-          .source-text-view{padding:18px 16px;font-size:.88rem}.detail-panel{padding:18px}
-          .results-layout[data-panel-pos="right"],.results-layout[data-panel-pos="left"]{flex-direction:column}
+          .main { padding: 16px 14px 48px; }
+          .upload-zone { padding: 40px 16px; }
+          .source-text-view { padding: 18px 16px; font-size: .88rem; }
+          .detail-panel { padding: 18px; }
+          .results-layout[data-panel-pos="right"], .results-layout[data-panel-pos="left"] { flex-direction: column; }
           .results-layout[data-panel-pos="right"] #detail-panel-anchor,
-          .results-layout[data-panel-pos="left"] #detail-panel-anchor{width:100%;flex-shrink:0}
+          .results-layout[data-panel-pos="left"] #detail-panel-anchor { width: 100%; flex-shrink: 0; }
 
-          /* Quiz top bar — keep title and counter on same row */
-          .quiz-top-bar{
-            display:grid;
-            grid-template-columns:auto 1fr auto;
-            align-items:center;
-            gap:8px;
-            padding:12px 14px;
-          }
-          .quiz-top-bar__title{
-            font-size:0.82rem;
-            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-            text-align:center;
-          }
-          .quiz-top-bar__progress{font-size:0.82rem;white-space:nowrap}
-
-          /* Quiz card */
-          .quiz-question-card{padding:20px 16px;margin:0 0 16px}
-          .quiz-question-card__text{font-size:.93rem;line-height:1.65}
-          .quiz-option{padding:12px 14px;font-size:.88rem}
-
-          /* Quiz actions */
-          .quiz-actions{gap:8px}
-          .quiz-actions .btn{flex:1;justify-content:center;font-size:.85rem;padding:10px 12px}
-
-          /* Exercise cards */
-          .exercise-grid{grid-template-columns:1fr}
-          .exercise-header{padding:20px 16px 16px}
+          /* Quiz cards */
+          .quiz-top-bar { padding: 12px 14px; }
+          .quiz-question-card { padding: 20px 16px; }
+          .quiz-option { padding: 12px 14px; }
+          .quiz-actions { gap: 8px; }
+          .quiz-actions .btn { flex: 1; justify-content: center; font-size: .85rem; padding: 10px 12px; }
+          .exercise-grid { grid-template-columns: 1fr; }
         }
 
-        @media(max-width:420px){
-          /* On very small screens, hide only the logout button in the header to save space */
-          .header__actions a[href="/logout"]{ display:none }
+        @media(max-width:480px){
+          .action-btn span { display: none !important; } /* Icon only on very small screens */
+          .action-btn { padding: 10px !important; }
         }
+
 
         /* Partial Credit Styles */
         .review-card--partial { border-left: 4px solid var(--accent-amber, #f59e0b) !important; }
@@ -99,67 +86,52 @@
         <div class="header__inner">
             <div class="header__brand">
                 <div class="header__logo">
-                    <svg width="44" height="44" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="42" cy="42" r="28" stroke="url(#lg)" stroke-width="5" fill="rgba(0,212,255,0.08)" />
-                        <text x="42" y="47" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900"
-                            font-size="18" fill="url(#lg)">SPY</text>
-                        <line x1="62" y1="62" x2="88" y2="88" stroke="url(#lg)" stroke-width="6"
-                            stroke-linecap="round" />
-                        <defs>
-                            <linearGradient id="lg" x1="0" y1="0" x2="100" y2="100">
-                                <stop offset="0%" stop-color="var(--accent-cyan,#00d4ff)" />
-                                <stop offset="100%" stop-color="var(--accent-purple,#7c3aed)" />
-                            </linearGradient>
-                        </defs>
+                        <text x="42" y="47" text-anchor="middle" font-family="Inter,sans-serif" font-weight="900" font-size="18" fill="url(#lg)">SPY</text>
+                        <line x1="62" y1="62" x2="88" y2="88" stroke="url(#lg)" stroke-width="6" stroke-linecap="round" />
+                        <defs><linearGradient id="lg" x1="0" y1="0" x2="100" y2="100"><stop offset="0%" stop-color="var(--accent-cyan,#00d4ff)" /><stop offset="100%" stop-color="var(--accent-purple,#7c3aed)" /></linearGradient></defs>
                     </svg>
                 </div>
-                <div>
+                <div class="header__text">
                     <h1 class="header__title">Spy AI</h1>
                     <p class="header__tagline">Your Translation Research Intelligence</p>
                 </div>
             </div>
+
             <div class="header__actions">
-                <div class="user-badge" style="display:flex; align-items:center; gap:12px; margin-right:8px; padding-right:16px; border-right:1px solid var(--border-subtle)">
-                    <div class="user-avatar" style="width:32px; height:32px; border-radius:50%; background:var(--accent-cyan); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.8rem">
+                <div class="user-badge">
+                    <div class="user-avatar" title="{{ user.role | upper }}">
                         {{ user.name[0] | upper }}
                     </div>
-                    <div style="display:flex; flex-direction:column; line-height:1.2">
-                        <span style="font-size:0.82rem; font-weight:700; color:var(--text-primary)">{{ user.name }}</span>
-                        <span style="font-size:0.65rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.02em">{{ user.role }}</span>
+                    <div class="user-meta">
+                        <span class="user-name">{{ user.name }}</span>
+                        <span class="user-role">{{ user.role }}</span>
                     </div>
                 </div>
 
-                {% if user.role == 'teacher' %}
-                <a href="/teacher/dashboard" class="btn btn--ghost btn--sm">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="3" y1="9" x2="21" y2="9"/>
-                        <line x1="9" y1="21" x2="9" y2="9"/>
-                    </svg>
-                    Dashboard
-                </a>
-                {% endif %}
+                <div class="action-group">
+                    {% if user.role == 'teacher' %}
+                    <a href="/teacher/dashboard" class="btn btn--ghost btn--sm action-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                        <span>Dashboard</span>
+                    </a>
+                    {% endif %}
 
-                <button class="btn btn--primary btn--sm" id="exercise-toggle" type="button">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 11l3 3L22 4" />
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                    </svg>
-                    Exercise
-                </button>
-                <button class="btn btn--ghost btn--sm" id="settings-toggle" type="button">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                    </svg>
-                    Settings
-                </button>
-                <a href="/logout" class="btn btn--ghost btn--sm" title="Logout">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                </a>
+                    <button class="btn btn--primary btn--sm action-btn" id="exercise-toggle" type="button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                        <span>Exercise</span>
+                    </button>
+                    <button class="btn btn--ghost btn--sm action-btn" id="settings-toggle" type="button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
+                        <span>Settings</span>
+                    </button>
+                    <a href="/logout" class="btn btn--ghost btn--sm action-btn logout-btn" title="Logout">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </a>
+                </div>
             </div>
+        </div>
         </div>
     </header>
 
