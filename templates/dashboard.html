@@ -83,7 +83,19 @@
             .results-table td:nth-child(2)::before { content: 'Test'; }
             .results-table td:nth-child(3)::before { content: 'Score'; }
             .results-table td:nth-child(4)::before { content: 'Date'; }
-        }
+         /* Live progress styles */
+        .live-section { margin-bottom: 32px; }
+        .live-section__title { font-size: 1rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse-dot 1.5s ease-in-out infinite; }
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+        .progress-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 12px; }
+        .progress-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 16px 20px; }
+        .progress-card__name { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 4px; }
+        .progress-card__test { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+        .progress-bar-wrap { background: rgba(0,0,0,0.06); border-radius: 100px; height: 8px; overflow: hidden; }
+        .progress-bar-inner { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--accent-cyan,#00d4ff), var(--accent-purple,#7c3aed)); transition: width .4s ease; }
+        .progress-card__label { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; text-align: right; }
+        .no-live { color: var(--text-muted); font-size: 0.9rem; padding: 12px 0; }
     </style>
 </head>
 <body>
@@ -121,6 +133,16 @@
             </div>
         </div>
 
+        <!-- LIVE PROGRESS SECTION -->
+        <div class="live-section">
+            <div class="live-section__title">
+                <span class="live-dot"></span> Students Currently Taking Test
+            </div>
+            <div class="progress-cards" id="progress-cards">
+                <p class="no-live">No students are currently taking a test.</p>
+            </div>
+        </div>
+
         <div class="results-table-container">
             {% if results %}
             <table class="results-table">
@@ -129,7 +151,7 @@
                         <th>Student</th>
                         <th>Test ID</th>
                         <th>Score</th>
-                        <th>Date & Time</th>
+                        <th>Date &amp; Time</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -168,5 +190,30 @@
             {% endif %}
         </div>
     </main>
+
+<script>
+async function pollProgress() {
+    try {
+        const res = await fetch("/api/student_progress");
+        const data = await res.json();
+        const container = document.getElementById("progress-cards");
+        if (!data.length) {
+            container.innerHTML = '<p class="no-live">No students are currently taking a test.</p>';
+            return;
+        }
+        container.innerHTML = data.map(s => {
+            const pct = s.total > 0 ? Math.round((s.question_index / s.total) * 100) : 0;
+            return `<div class="progress-card">
+                <div class="progress-card__name">${s.name}</div>
+                <div class="progress-card__test">${s.test_id}</div>
+                <div class="progress-bar-wrap"><div class="progress-bar-inner" style="width:${pct}%"></div></div>
+                <div class="progress-card__label">Question ${s.question_index} of ${s.total} &nbsp;·&nbsp; ${pct}%</div>
+            </div>`;
+        }).join("");
+    } catch(e) {}
+}
+pollProgress();
+setInterval(pollProgress, 5000);
+</script>
 </body>
 </html>

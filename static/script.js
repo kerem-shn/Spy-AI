@@ -59,12 +59,16 @@
         accentPicker.querySelectorAll(".theme-swatch").forEach(s => s.addEventListener("click", () => applyAccent(s.dataset.accent)));
         positionPicker.querySelectorAll(".pos-swatch").forEach(s => s.addEventListener("click", () => applyPanelPos(s.dataset.pos)));
 
-        // Header shrink on scroll
-        let lastScroll = 0;
+        // Header shrink on scroll — debounced via rAF to prevent glitch
+        let scrollTicking = false;
         window.addEventListener("scroll", () => {
-            const y = window.scrollY;
-            siteHeader.classList.toggle("header--compact", y > 60);
-            lastScroll = y;
+            if (!scrollTicking) {
+                requestAnimationFrame(() => {
+                    siteHeader.classList.toggle("header--compact", window.scrollY > 60);
+                    scrollTicking = false;
+                });
+                scrollTicking = true;
+            }
         }, { passive: true });
     }
 
@@ -399,6 +403,7 @@
         const entries = Object.entries(entities);
         if (!entries.length) { entitiesContainer.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text-muted)">🔍 No named entities found.</div>'; return }
         entries.forEach(([name, info], idx) => {
+            if (!info) return; // guard against null entity summary
             const card = document.createElement("div"); card.classList.add("entity-card");
             card.style.animationDelay = `${Math.min(idx * 0.05, 0.5)}s`;
             const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group" }[info.label_display] || "person";
@@ -507,19 +512,13 @@
 
     // DOM refs for exercise
     const exerciseToggle = $("exercise-toggle");
-    const exerciseSelect = $("exercise-select");
-    const exerciseQuiz = $("exercise-quiz");
-    const exerciseResults = $("exercise-results");
+    const exerciseSelect = $("exercise-select"), exerciseQuiz = $("exercise-quiz"), exerciseResults = $("exercise-results");
     const exerciseGrid = $("exercise-grid");
     const exerciseBackHome = $("exercise-back-home");
     const quizBackSelect = $("quiz-back-select");
-    const quizTitle = $("quiz-title");
-    const quizProgressLabel = $("quiz-progress-label");
-    const quizProgressFill = $("quiz-progress-fill");
-    const quizQType = $("quiz-q-type");
-    const quizQText = $("quiz-q-text");
-    const quizOptions = $("quiz-options");
-    const quizNextBtn = $("quiz-next-btn");
+    const quizTitle = $("quiz-title"), quizProgressLabel = $("quiz-progress-label"), quizProgressFill = $("quiz-progress-fill");
+    const quizQType = $("quiz-q-type"), quizQText = $("quiz-q-text"), quizOptions = $("quiz-options");
+    const quizNextBtn = $("quiz-next-btn"), quizPrevBtn = $("quiz-prev-btn");
     const resultsScoreCircle = $("results-score-circle");
     const resultsScorePct = $("results-score-pct");
     const resultsScoreDetail = $("results-score-detail");
@@ -571,7 +570,6 @@
 
             const btn = card.querySelector(".btn--primary");
 
-            // Check if already taken and mark card accordingly
             fetch(`/api/has_taken/${test.id}`)
                 .then(r => r.json())
                 .then(data => {
@@ -597,7 +595,6 @@
         const test = QUIZ_DATA.find(t => t.id === testId);
         if (!test) return;
 
-        // Check one-attempt rule
         try {
             const res = await fetch(`/api/has_taken/${testId}`);
             const data = await res.json();
@@ -605,7 +602,7 @@
                 showToast("You have already completed this test. Each test can only be taken once.", "error");
                 return;
             }
-        } catch (e) { /* allow if check fails */ }
+        } catch (e) { }
 
         exCurrentTestId = testId;
         exCurrentQIndex = 0;
@@ -628,35 +625,28 @@
         const total = test.questions.length;
         const num = exCurrentQIndex + 1;
 
-        // Progress
         quizProgressLabel.textContent = `${num} / ${total}`;
         quizProgressFill.style.width = `${(num / total) * 100}%`;
 
-        // Type badge
         const typeLabels = {
             "multiple-choice": "Multiple Choice",
             "multiple-select": "Multiple Select",
             "true-false": "True or False"
         };
         quizQType.textContent = typeLabels[q.type] || q.type;
-
-        // Question text (allow HTML for bold/underline)
         quizQText.innerHTML = q.text;
 
-        // Options
         quizOptions.innerHTML = "";
         const isMulti = q.type === "multiple-select";
         q.options.forEach((opt, idx) => {
             const div = document.createElement("div");
             div.className = "quiz-option" + (isMulti ? " quiz-option--checkbox" : "");
             div.innerHTML = opt;
-            // Restore previous selection if navigating back
             if (exStudentAnswers[exCurrentQIndex].includes(idx)) {
                 div.classList.add("quiz-option--selected");
             }
             div.addEventListener("click", () => {
                 if (isMulti) {
-                    // Toggle
                     div.classList.toggle("quiz-option--selected");
                     const sel = exStudentAnswers[exCurrentQIndex];
                     if (sel.includes(idx)) {
@@ -665,7 +655,6 @@
                         sel.push(idx);
                     }
                 } else {
-                    // Single select
                     quizOptions.querySelectorAll(".quiz-option").forEach(o => o.classList.remove("quiz-option--selected"));
                     div.classList.add("quiz-option--selected");
                     exStudentAnswers[exCurrentQIndex] = [idx];
@@ -674,14 +663,25 @@
             quizOptions.appendChild(div);
         });
 
-        // Button label
-        quizNextBtn.textContent = num === total ? "Submit" : "Next";
+        quizNextBtn.textContent = num === total ? "Submit" : "Next →";
+        quizPrevBtn.style.display = exCurrentQIndex > 0 ? "" : "none";
+    }
+
+    function handleQuizPrev() {
+        if (exCurrentQIndex <= 0) return;
+        exCurrentQIndex--;
+        renderQuestion();
+        const card = $("quiz-question-card");
+        if (card) {
+            card.style.animation = "none";
+            card.offsetHeight;
+            card.style.animation = "panelIn .3s ease";
+        }
     }
 
     function handleQuizNext() {
         const test = getCurrentTest();
         if (!test) return;
-        // Check if user selected at least one option
         if (exStudentAnswers[exCurrentQIndex].length === 0) {
             showToast("Please select an answer before continuing.", "error");
             return;
@@ -689,11 +689,21 @@
         if (exCurrentQIndex < test.questions.length - 1) {
             exCurrentQIndex++;
             renderQuestion();
-            // Re-animate the card
+            fetch("/api/update_progress", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    test_id: exCurrentTestId,
+                    question_index: exCurrentQIndex,
+                    total: test.questions.length
+                })
+            }).catch(() => {});
             const card = $("quiz-question-card");
-            card.style.animation = "none";
-            card.offsetHeight; // trigger reflow
-            card.style.animation = "panelIn .3s ease";
+            if (card) {
+                card.style.animation = "none";
+                card.offsetHeight;
+                card.style.animation = "panelIn .3s ease";
+            }
         } else {
             showResults();
         }
@@ -706,7 +716,6 @@
         hideAllSections();
         exerciseResults.hidden = false;
 
-        // Calculate score
         let correctCount = 0;
         test.questions.forEach((q, idx) => {
             const student = [...exStudentAnswers[idx]].sort().join(",");
@@ -716,12 +725,10 @@
 
         const pct = Math.round((correctCount / test.questions.length) * 100);
 
-        // Animate score ring
-        const circumference = 2 * Math.PI * 52; // r=52
+        const circumference = 2 * Math.PI * 52;
         const offset = circumference - (pct / 100) * circumference;
         resultsScoreCircle.style.strokeDasharray = circumference;
         resultsScoreCircle.style.strokeDashoffset = circumference;
-        // Trigger animation after a small delay
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 resultsScoreCircle.style.strokeDashoffset = offset;
@@ -731,7 +738,6 @@
         resultsScorePct.textContent = pct + "%";
         resultsScoreDetail.textContent = `${correctCount} of ${test.questions.length} correct`;
 
-        // Save result to server
         fetch("/api/save_result", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -743,7 +749,6 @@
             })
         }).catch(err => console.error("Failed to save quiz result", err));
 
-        // Build review cards
         resultsReview.innerHTML = "";
         test.questions.forEach((q, idx) => {
             const studentAns = exStudentAnswers[idx];
@@ -760,7 +765,6 @@
                 : "No answer";
             const correctAnswerText = q.correct.map(i => q.options[i]).join(", ");
 
-            // Strip HTML tags for review display of question text
             const plainQ = q.text.replace(/<[^>]+>/g, '');
 
             let answersHTML = "";
@@ -797,10 +801,8 @@
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    // Bind exercise events
     function bindExerciseEvents() {
         exerciseToggle.addEventListener("click", () => {
-            // Close settings if open
             settingsPanel.classList.remove("settings-panel--open");
             settingsPanel.setAttribute("aria-hidden", "true");
             showExerciseSelect();
@@ -812,6 +814,7 @@
             }
         });
         quizNextBtn.addEventListener("click", handleQuizNext);
+        quizPrevBtn.addEventListener("click", handleQuizPrev);
         resultsBackTests.addEventListener("click", showExerciseSelect);
         resultsRetry.addEventListener("click", () => {
             if (exCurrentTestId) startQuiz(exCurrentTestId);

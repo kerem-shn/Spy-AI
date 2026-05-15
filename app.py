@@ -196,6 +196,17 @@ class SpyAICache:
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 )
             """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS quiz_progress (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER UNIQUE,
+                    test_id TEXT,
+                    question_index INTEGER DEFAULT 0,
+                    total_questions INTEGER DEFAULT 0,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
             conn.commit()
             conn.close()
 
@@ -261,6 +272,36 @@ class SpyAICache:
             """, (user_id, test_id))
             return cursor.fetchone()
         except: return None
+
+    def upsert_progress(self, user_id, test_id, question_index, total):
+        try:
+            with self._lock:
+                conn = sqlite3.connect(self.db_path)
+                conn.execute("""
+                    INSERT INTO quiz_progress (user_id, test_id, question_index, total_questions, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        test_id=excluded.test_id,
+                        question_index=excluded.question_index,
+                        total_questions=excluded.total_questions,
+                        updated_at=CURRENT_TIMESTAMP
+                """, (user_id, test_id, question_index, total))
+                conn.commit()
+                conn.close()
+        except: pass
+
+    def get_all_progress(self):
+        try:
+            cursor = self._get_conn().cursor()
+            cursor.execute("""
+                SELECT users.name, users.identifier, qp.test_id,
+                       qp.question_index, qp.total_questions, qp.updated_at
+                FROM quiz_progress qp
+                JOIN users ON users.id = qp.user_id
+                ORDER BY qp.updated_at DESC
+            """)
+            return cursor.fetchall()
+        except: return []
 
     def get(self, category, key):
         try:
@@ -1004,6 +1045,11 @@ def login():
             if not u:
                 user_id = cache.create_user(identifier, name, None, "student")
                 u = cache.get_user_by_id(user_id)
+            else:
+                # Validate name matches — prevent account hijacking via shared student ID
+                if u[2] and u[2].strip().lower() != name.strip().lower():
+                    flash("This Student ID is already registered to a different name. Please check your ID.")
+                    return render_template("login.html")
             
             user_obj = User(u[0], u[1], u[2], u[4])
             login_user(user_obj)
@@ -1085,6 +1131,31 @@ def save_result():
 def has_taken(test_id):
     result = cache.get_user_result(current_user.id, test_id)
     return jsonify({"taken": result is not None})
+
+
+@app.route("/api/update_progress", methods=["POST"])
+@login_required
+def update_progress():
+    data = request.json
+    cache.upsert_progress(
+        current_user.id,
+        data.get("test_id"),
+        data.get("question_index", 0),
+        data.get("total", 0)
+    )
+    return jsonify({"success": True})
+
+
+@app.route("/api/student_progress", methods=["GET"])
+@login_required
+def student_progress():
+    if current_user.role != "teacher":
+        return jsonify({"error": "Forbidden"}), 403
+    rows = cache.get_all_progress()
+    return jsonify([{
+        "name": r[0], "identifier": r[1], "test_id": r[2],
+        "question_index": r[3], "total": r[4], "updated_at": r[5]
+    } for r in rows])
 
 
 @app.route("/upload", methods=["POST"])
