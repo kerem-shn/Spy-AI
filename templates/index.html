@@ -166,30 +166,7 @@
     <!-- SETTINGS -->
     <section class="settings-panel" id="settings-panel" aria-hidden="true">
         <div class="settings-panel__inner">
-            <!-- Row 1: API + Direction -->
-            <div class="settings-group settings-group--wide">
-                <label class="settings-label" for="deepl-key-input">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    DeepL API Key <span class="settings-optional">(optional)</span>
-                </label>
-                <input type="password" id="deepl-key-input" class="input" placeholder="Paste your DeepL API key..."
-                    autocomplete="off">
-                <p class="settings-hint">Free at <a href="https://www.deepl.com/pro-api"
-                        target="_blank">deepl.com/pro-api</a>. Falls back to Google Translate.</p>
-            </div>
-            <div class="settings-group settings-group--narrow">
-                <label class="settings-label">Direction</label>
-                <div class="direction-toggle">
-                    <button class="direction-btn direction-btn--active" data-dir="en-tr" type="button">🇬🇧 EN → TR
-                        🇹🇷</button>
-                    <button class="direction-btn" data-dir="tr-en" type="button">🇹🇷 TR → EN 🇬🇧</button>
-                </div>
-            </div>
-
-            <!-- Row 2: UI Theme (organized grid) -->
+            <!-- Row 1: UI Theme -->
             <div class="settings-group">
                 <label class="settings-label">UI Theme</label>
                 <div class="picker-row" id="theme-picker">

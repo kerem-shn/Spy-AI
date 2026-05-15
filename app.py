@@ -110,8 +110,16 @@ ENTITY_LABEL_DISPLAY = {
     "GPE": "Place",
     "EVENT": "Event",
     "WORK_OF_ART": "Work of Art",
-    "NORP": "Group/Nationality",
+    "NORP": "Group/Nationality"
 }
+
+@app.after_request
+def add_header(response):
+    # Prevent caching of all responses to ensure sessions don't get mixed up by proxies
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # ---------------------------------------------------------------------------
 # Domain-Specific Translation Overrides

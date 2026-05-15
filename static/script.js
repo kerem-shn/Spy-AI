@@ -4,8 +4,6 @@
     const $ = id => document.getElementById(id);
 
     const siteHeader = $("site-header"), settingsToggle = $("settings-toggle"), settingsPanel = $("settings-panel");
-    const deeplKeyInput = $("deepl-key-input");
-    const dirBtns = document.querySelectorAll(".direction-btn");
     const uploadZone = $("upload-zone"), fileInput = $("file-input");
     const fileInfo = $("file-info"), fileName = $("file-name"), fileSize = $("file-size");
     const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn");
@@ -23,8 +21,6 @@
     let selectedFile = null, currentDirection = "en-tr", analysisData = null, panelPos = "bottom";
 
     function init() {
-        const sk = localStorage.getItem("spyai_deepl_key"); if (sk) deeplKeyInput.value = sk;
-        const sd = localStorage.getItem("spyai_direction"); if (sd) setDirection(sd);
         applyTheme(localStorage.getItem("spyai_theme") || "light");
         applyAccent(localStorage.getItem("spyai_accent") || "default");
         applyPanelPos(localStorage.getItem("spyai_panelpos") || "bottom");
@@ -49,8 +45,6 @@
             settingsPanel.classList.toggle("settings-panel--open");
             settingsPanel.setAttribute("aria-hidden", !settingsPanel.classList.contains("settings-panel--open"));
         });
-        deeplKeyInput.addEventListener("change", () => localStorage.setItem("spyai_deepl_key", deeplKeyInput.value.trim()));
-        dirBtns.forEach(b => b.addEventListener("click", () => setDirection(b.dataset.dir)));
 
         // Upload
         uploadZone.addEventListener("click", () => fileInput.click());
@@ -101,10 +95,6 @@
         if (resultsLayout) resultsLayout.setAttribute("data-panel-pos", p);
         positionPicker.querySelectorAll(".pos-swatch").forEach(s => s.classList.toggle("pos-swatch--active", s.dataset.pos === p));
     }
-    function setDirection(d) {
-        currentDirection = d; localStorage.setItem("spyai_direction", d);
-        dirBtns.forEach(b => b.classList.toggle("direction-btn--active", b.dataset.dir === d));
-    }
 
     // --- File ---
     function handleFile(f) {
@@ -125,7 +115,6 @@
         sessionStorage.removeItem("spyai_analysis");
 
         const fd = new FormData(); fd.append("file", selectedFile); fd.append("direction", currentDirection);
-        const key = deeplKeyInput.value.trim(); if (key) fd.append("deepl_key", key);
 
         analysisData = { source_text: "", terms: {}, entities: {}, stats: {} };
 
