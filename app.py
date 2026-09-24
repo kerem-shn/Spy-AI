@@ -16,6 +16,7 @@ import requests
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, flash, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import spacy
 from deep_translator import GoogleTranslator
@@ -90,16 +91,33 @@ except Exception as e:
 try:
     nlp = spacy.load("en_core_web_sm")
     logger.info("spaCy model 'en_core_web_sm' loaded successfully.")
-except OSError:
-    logger.error("spaCy model not found. Run: python -m spacy download en_core_web_sm")
-    nlp = None
+except (OSError, ImportError):
+    try:
+        import en_core_web_sm
+        nlp = en_core_web_sm.load()
+        logger.info("spaCy model loaded via direct en_core_web_sm import.")
+    except Exception:
+        logger.warning("Attempting automatic download of en_core_web_sm...")
+        try:
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
+            nlp = spacy.load("en_core_web_sm")
+        except Exception as e:
+            logger.error(f"Failed to load spaCy model: {e}")
+            nlp = None
 
 wikipedia.set_lang("en")
 
 app = Flask(__name__)
+# Enable ProxyFix for Railway / reverse proxy SSL termination and headers
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "spy-ai-super-secret-key-123")
-app.config["SESSION_COOKIE_SECURE"] = True
+
+# Secure cookies in production environments (Railway / Render / HTTPS), disable for local development
+is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("RENDER") is not None or os.environ.get("FLASK_ENV") == "production"
+app.config["SESSION_COOKIE_SECURE"] = is_production
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
@@ -956,8 +974,9 @@ def upload():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
     logger.info("=" * 50)
     logger.info("  SPY AI — Translation Pre-Research Assistant")
-    logger.info("  Starting on http://localhost:5000")
+    logger.info(f"  Starting on http://0.0.0.0:{port}")
     logger.info("=" * 50)
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")

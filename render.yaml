@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: spy-ai
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --timeout 120 --workers 1
-    envVars:
-      - key: SECRET_KEY
-        generateValue: true
