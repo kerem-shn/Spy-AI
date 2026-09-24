@@ -10,3 +10,7 @@ ENV/
 backups/
 *.zip
 .DS_Store
+.pytest_cache/
+scratch/
+spy_ai_cache.db
+*.db

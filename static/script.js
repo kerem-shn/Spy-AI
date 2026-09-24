@@ -116,7 +116,7 @@
 
         const fd = new FormData(); fd.append("file", selectedFile); fd.append("direction", currentDirection);
 
-        analysisData = { source_text: "", terms: {}, entities: {}, stats: {} };
+        analysisData = { source_text: "", terms: {}, entities: {}, stats: {}, segments: [] };
 
         try {
             const response = await fetch("/upload", { method: "POST", body: fd });
@@ -164,10 +164,14 @@
                 analysisData.stats.total_terms = payload.total_terms;
                 analysisData.stats.total_entities = payload.total_entities;
                 analysisData.stats.translation_engine = payload.engine;
+                analysisData.segments = payload.segments || [];
+                analysisData.stats.domain = payload.domain || null;
                 initResultsUI();
                 break;
             case "term":
-                analysisData.terms[payload.lemma] = payload;
+                // Store by id for per-occurrence, by lemma for backward compat
+                const termKey = payload.id || payload.lemma;
+                analysisData.terms[termKey] = payload;
                 updateStats();
                 incrementalRender();
                 break;
@@ -329,17 +333,59 @@
 
     // === DETAIL PANELS ===
     function showTermDetail(lemma) {
-        const info = analysisData.terms[lemma]; if (!info) return;
-        const chips = (info.translations || []).map((t, i) => `<span class="translation-chip ${i === 0 ? "translation-chip--primary" : ""}">${esc(t)}</span>`).join("");
-        const meanEN = (info.meanings_en || []).map(m => `<li class="meaning-item"><span class="meaning-badge ${m.is_primary ? "meaning-badge--primary" : "meaning-badge--alt"}">${m.is_primary ? "context" : "alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
-        const meanTR = (info.meanings_tr || []).map(m => `<li class="meaning-item"><span class="meaning-badge ${m.is_primary ? "meaning-badge--primary" : "meaning-badge--alt"}">${m.is_primary ? "context" : "alt"}</span><span>${esc(m.definition)}</span></li>`).join("");
+        // Find term by lemma across all stored terms
+        let info = analysisData.terms[lemma];
+        if (!info) {
+            info = Object.values(analysisData.terms).find(t => t.lemma === lemma);
+        }
+        if (!info) return;
+
+        const chips = (info.translations || []).map((t, i) => {
+            const text = typeof t === "object" ? t.text : t;
+            return `<span class="translation-chip ${i === 0 ? "translation-chip--primary" : ""}">${esc(text)}</span>`;
+        }).join("");
+
+        const meanEN = (info.meanings_en && info.meanings_en.length > 0)
+            ? info.meanings_en.map(m => {
+                const src = m.source ? `<span class="meaning-source">${esc(m.source)}</span>` : "";
+                return `<li class="meaning-item"><span class="meaning-badge ${m.is_primary ? "meaning-badge--primary" : "meaning-badge--alt"}">${m.is_primary ? "context" : "alt"}</span><span>${esc(m.definition)}</span>${src}</li>`;
+            }).join("")
+            : `<li style="color:var(--text-muted);font-size:0.85rem;list-style:none;padding:4px 0">No dictionary definition available</li>`;
+
+        const meanTR = (info.meanings_tr && info.meanings_tr.length > 0)
+            ? info.meanings_tr.map(m => `<li class="meaning-item"><span class="meaning-badge ${m.is_primary ? "meaning-badge--primary" : "meaning-badge--alt"}">${m.is_primary ? "context" : "alt"}</span><span>${esc(m.definition)}</span></li>`).join("")
+            : `<li style="color:var(--text-muted);font-size:0.85rem;list-style:none;padding:4px 0">Sözlük tanımı bulunamadı</li>`;
+
         const url = `https://www.google.com/search?q=${encodeURIComponent(lemma + " definition")}`;
+
+        // v2 fields
+        const posTag = info.pos || "";
+        const posFine = info.pos_fine || "";
+        const category = info.category || "";
+        const confLevel = info.confidence_level || "";
+        const confObj = info.confidence || {};
+        const evidence = info.evidence || [];
+        const syntRole = info.syntactic_role || "";
+        const sentenceCtx = info.context || "";
+
+        // POS badge
+        const posHTML = posTag ? `<span class="pos-badge pos-badge--${posTag.toLowerCase()}">${posTag}${posFine ? " (" + posFine + ")" : ""}</span>` : "";
+
+        // Confidence indicator
+        const confPct = confObj.overall ? Math.round(confObj.overall * 100) : 0;
+        const confHTML = confLevel ? `<span class="confidence-badge confidence-badge--${confLevel}" title="Overall: ${confPct}%">${confLevel === "high" ? "✓" : confLevel === "medium" ? "~" : "?"} ${confPct}%</span>` : "";
+
+        // Evidence chips
+        const evidenceHTML = evidence.length ? `<div class="evidence-chips">${evidence.map(e => `<span class="evidence-chip">${esc(e)}</span>`).join("")}</div>` : "";
+
+        // Context sentence
+        const ctxHTML = sentenceCtx ? `<div class="detail-panel__section"><div class="detail-panel__section-title">Context</div><p class="detail-panel__context">${esc(sentenceCtx)}</p></div>` : "";
 
         detailAnchor.innerHTML = `
         <div class="detail-panel">
             <button class="detail-panel__close" id="detail-close" title="Close">&times;</button>
             <div class="detail-panel__header">
-                <span class="detail-panel__word">${esc(lemma)}</span>
+                <span class="detail-panel__word">${esc(info.surface || lemma)}</span>
                 <div class="detail-panel__actions">
                     <div class="meaning-lang-toggle">
                         <button class="meaning-lang-btn meaning-lang-btn--active" data-lang="en" type="button">EN</button>
@@ -350,19 +396,29 @@
                     </a>
                 </div>
             </div>
-            <div class="detail-panel__section"><div class="detail-panel__section-title">Translations</div><div class="translation-chips">${chips}</div></div>
+            <div class="detail-panel__section"><div class="detail-panel__section-title">Translations</div><div class="translation-chips">${chips || '<span style="color:var(--text-muted);font-size:0.85rem">No translation available</span>'}</div></div>
             <div class="detail-panel__section"><div class="detail-panel__section-title">Meanings</div>
                 <ul class="meaning-list" id="meanings-en">${meanEN}</ul>
                 <ul class="meaning-list" id="meanings-tr" style="display:none">${meanTR}</ul>
             </div>
+            ${evidenceHTML}
         </div>`;
         bindPanelEvents();
     }
 
     function showEntityDetail(name) {
         const info = analysisData.entities[name]; if (!info) return;
-        const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group" }[info.label_display] || "person";
+        const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Location": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group", "Facility": "organization" }[info.label_display] || "person";
         const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
+
+        // v2 confidence
+        const confLevel = info.confidence_level || "";
+        const confPct = info.confidence ? Math.round(info.confidence * 100) : 0;
+        const confHTML = confLevel ? `<span class="confidence-badge confidence-badge--${confLevel}" title="Confidence: ${confPct}%">${confLevel === "high" ? "✓" : confLevel === "medium" ? "~" : "?"} ${confPct}%</span>` : "";
+
+        // v2 subtype and location
+        const subtypeHTML = info.entity_subtype ? `<span class="entity-subtype-badge">${esc(info.entity_subtype)}</span>` : "";
+        const locationHTML = info.location ? `<div style="margin-top:6px;font-size:.78rem;color:var(--text-secondary)">📍 ${esc(info.location)}</div>` : "";
 
         detailAnchor.innerHTML = `
         <div class="detail-panel">
@@ -370,6 +426,8 @@
             <div class="detail-panel__header">
                 <span class="detail-panel__word">${esc(name)}</span>
                 <span class="entity-type-badge entity-type-badge--${bc}">${esc(info.label_display)}</span>
+                ${subtypeHTML}
+                ${confHTML}
                 <div class="detail-panel__actions">
                     <a href="${url}" target="_blank" rel="noopener" class="btn--icon" title="Research on Google">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -378,6 +436,7 @@
             </div>
             <div class="detail-panel__section"><div class="detail-panel__section-title">Summary</div>
                 <p style="font-size:.9rem;color:var(--text-secondary);line-height:1.7">${esc(info.summary)}</p>
+                ${locationHTML}
                 <div style="margin-top:8px;font-size:.72rem;color:var(--text-muted)">Source: ${esc(info.source)}</div>
             </div>
         </div>`;
