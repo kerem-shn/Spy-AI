@@ -187,6 +187,17 @@
                 <button type="submit" class="btn btn--primary login-btn">Sign In</button>
             </form>
 
+            <div style="display:flex;align-items:center;gap:12px;margin:20px 0 8px">
+                <div style="flex:1;height:1px;background:var(--border-subtle)"></div>
+                <span style="font-size:0.82rem;color:var(--text-muted);font-weight:500">or</span>
+                <div style="flex:1;height:1px;background:var(--border-subtle)"></div>
+            </div>
+
+            <form action="/login" method="POST">
+                <input type="hidden" name="role" value="guest">
+                <button type="submit" class="btn btn--ghost login-btn" style="margin-top:0;border:1px solid var(--border-subtle)">Continue as Guest</button>
+            </form>
+
             <div class="register-link" id="teacher-reg-link" style="display:none">
                 Don't have an account? <a href="/register">Register as Teacher</a>
             </div>

@@ -102,7 +102,20 @@
         if (!["pdf", "docx", "doc", "txt"].includes(ext)) { showToast("Unsupported file type.", "error"); return }
         selectedFile = f; fileName.textContent = f.name; fileSize.textContent = fmtSize(f.size); fileInfo.hidden = false;
     }
-    function clearFile() { selectedFile = null; fileInput.value = ""; fileInfo.hidden = true; resultsSection.hidden = true }
+    function clearFile() {
+        selectedFile = null;
+        fileInput.value = "";
+        fileInfo.hidden = true;
+        resultsSection.hidden = true;
+        loadingSection.hidden = true;
+        uploadSection.style.display = "";
+        analysisData = null;
+        sessionStorage.removeItem("spyai_analysis");
+        // Clear source text and detail panel
+        if (sourceTextView) sourceTextView.innerHTML = "";
+        if (detailAnchor) detailAnchor.innerHTML = "";
+        if (entitiesContainer) entitiesContainer.innerHTML = "";
+    }
     function fmtSize(b) { if (b < 1024) return b + " B"; if (b < 1048576) return (b / 1024).toFixed(1) + " KB"; return (b / 1048576).toFixed(1) + " MB" }
 
     // --- Analysis ---
@@ -156,8 +169,6 @@
         switch (type) {
             case "status":
                 loadingStatus.textContent = payload;
-                if (payload.includes("Processing terms")) loadingBarFill.style.width = "40%";
-                if (payload.includes("Researching entities")) loadingBarFill.style.width = "75%";
                 break;
             case "meta":
                 analysisData.source_text = payload.source_text;
@@ -173,11 +184,13 @@
                 const termKey = payload.id || payload.lemma;
                 analysisData.terms[termKey] = payload;
                 updateStats();
+                updateProgressBar();
                 incrementalRender();
                 break;
             case "entity":
                 analysisData.entities[payload.name] = payload.summary;
                 updateStats();
+                updateProgressBar();
                 renderEntities(analysisData.entities);
                 incrementalRender();
                 break;
@@ -209,6 +222,15 @@
         const entsFound = Object.keys(analysisData.entities).length;
         statTerms.textContent = `${termsFound} / ${analysisData.stats.total_terms}`;
         statEntities.textContent = `${entsFound} / ${analysisData.stats.total_entities}`;
+    }
+
+    function updateProgressBar() {
+        const totalExpected = (analysisData.stats.total_terms || 0) + (analysisData.stats.total_entities || 0);
+        const totalReceived = Object.keys(analysisData.terms).length + Object.keys(analysisData.entities).length;
+        if (totalExpected > 0) {
+            const pct = Math.min(Math.round((totalReceived / totalExpected) * 95), 95); // cap at 95% until 'done'
+            loadingBarFill.style.width = pct + "%";
+        }
     }
 
     function incrementalRender() {
@@ -411,11 +433,6 @@
         const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Location": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group", "Facility": "organization" }[info.label_display] || "person";
         const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
 
-        // v2 confidence
-        const confLevel = info.confidence_level || "";
-        const confPct = info.confidence ? Math.round(info.confidence * 100) : 0;
-        const confHTML = confLevel ? `<span class="confidence-badge confidence-badge--${confLevel}" title="Confidence: ${confPct}%">${confLevel === "high" ? "✓" : confLevel === "medium" ? "~" : "?"} ${confPct}%</span>` : "";
-
         // v2 subtype and location
         const subtypeHTML = info.entity_subtype ? `<span class="entity-subtype-badge">${esc(info.entity_subtype)}</span>` : "";
         const locationHTML = info.location ? `<div style="margin-top:6px;font-size:.78rem;color:var(--text-secondary)">📍 ${esc(info.location)}</div>` : "";
@@ -427,7 +444,6 @@
                 <span class="detail-panel__word">${esc(name)}</span>
                 <span class="entity-type-badge entity-type-badge--${bc}">${esc(info.label_display)}</span>
                 ${subtypeHTML}
-                ${confHTML}
                 <div class="detail-panel__actions">
                     <a href="${url}" target="_blank" rel="noopener" class="btn--icon" title="Research on Google">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -887,23 +903,29 @@
     }
 
     function bindExerciseEvents() {
-        exerciseToggle.addEventListener("click", () => {
-            settingsPanel.classList.remove("settings-panel--open");
-            settingsPanel.setAttribute("aria-hidden", "true");
-            showExerciseSelect();
-        });
-        exerciseBackHome.addEventListener("click", showHomePage);
-        quizBackSelect.addEventListener("click", () => {
-            if (confirm("Are you sure you want to leave this test? Your progress will be lost.")) {
+        if (exerciseToggle) {
+            exerciseToggle.addEventListener("click", () => {
+                settingsPanel.classList.remove("settings-panel--open");
+                settingsPanel.setAttribute("aria-hidden", "true");
                 showExerciseSelect();
-            }
-        });
-        quizNextBtn.addEventListener("click", handleQuizNext);
-        quizPrevBtn.addEventListener("click", handleQuizPrev);
-        resultsBackTests.addEventListener("click", showExerciseSelect);
-        resultsRetry.addEventListener("click", () => {
-            if (exCurrentTestId) startQuiz(exCurrentTestId);
-        });
+            });
+        }
+        if (exerciseBackHome) exerciseBackHome.addEventListener("click", showHomePage);
+        if (quizBackSelect) {
+            quizBackSelect.addEventListener("click", () => {
+                if (confirm("Are you sure you want to leave this test? Your progress will be lost.")) {
+                    showExerciseSelect();
+                }
+            });
+        }
+        if (quizNextBtn) quizNextBtn.addEventListener("click", handleQuizNext);
+        if (quizPrevBtn) quizPrevBtn.addEventListener("click", handleQuizPrev);
+        if (resultsBackTests) resultsBackTests.addEventListener("click", showExerciseSelect);
+        if (resultsRetry) {
+            resultsRetry.addEventListener("click", () => {
+                if (exCurrentTestId) startQuiz(exCurrentTestId);
+            });
+        }
     }
 
     bindExerciseEvents();

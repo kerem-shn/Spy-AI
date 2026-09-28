@@ -108,6 +108,54 @@ ORDINARY_DESCRIPTIVE_ADJECTIVES = {
     "hard", "beautiful", "fine", "cool", "warm", "hot", "cold",
 }
 
+# Demonym suffixes — words ending in these + capitalized are likely
+# nationalities/demonyms (NORP entities), not vocabulary terms
+DEMONYM_SUFFIXES = (
+    "ians", "ians", "ans", "ese", "ish", "ish",
+    "ian", "an", "er", "ers",
+)
+
+# Known demonyms that spaCy might not tag as NORP
+KNOWN_DEMONYMS = {
+    "parisians", "parisian", "londoners", "londoner", "berliners", "berliner",
+    "new yorkers", "new yorker", "romans", "roman", "athenians", "athenian",
+    "muscovites", "muscovite", "persians", "persian", "turks", "turkish",
+    "americans", "american", "canadians", "canadian", "australians", "australian",
+    "europeans", "european", "africans", "african", "asians", "asian",
+    "mexicans", "mexican", "brazilians", "brazilian", "argentinians", "argentinian",
+    "israelis", "israeli", "palestinians", "palestinian",
+}
+
+# B2+ academic / uncommon words that appear in Brown corpus but are still
+# valuable for translation students to research. These override the
+# COMMON_WORDS filter.
+ACADEMIC_B2_WORDS = {
+    "abstract", "counterpart", "paradigm", "paradox", "dichotomy", "nuance",
+    "pragmatic", "rhetoric", "discourse", "ideology", "terminology",
+    "methodology", "phenomenon", "ambiguity", "connotation", "denotation",
+    "euphemism", "metaphor", "analogy", "allegory", "irony", "satire",
+    "coherent", "cohesion", "implicit", "explicit", "intrinsic", "extrinsic",
+    "arbitrary", "empirical", "hypothetical", "theoretical", "pragmatic",
+    "tangible", "intangible", "subjective", "objective", "profound",
+    "prevalent", "predominant", "salient", "pertinent", "relevant",
+    "comprehensive", "exhaustive", "rigorous", "meticulous", "scrupulous",
+    "deteriorate", "exacerbate", "alleviate", "mitigate", "eradicate",
+    "scrutinize", "contemplate", "discern", "perceive", "apprehend",
+    "elaborate", "articulate", "substantiate", "corroborate", "validate",
+    "constitute", "encompass", "entail", "denote", "connote",
+    "compensate", "complement", "supplement", "augment", "diminish",
+    "derive", "invoke", "elicit", "evoke", "provoke",
+    "concurrent", "subsequent", "antecedent", "preliminary", "provisional",
+    "autonomous", "indigenous", "heterogeneous", "homogeneous",
+    "unprecedented", "ubiquitous", "prolific", "profound", "perpetual",
+    "succinct", "concise", "verbose", "redundant", "superfluous",
+    "inherent", "innate", "integral", "peripheral", "pivotal",
+    "feasible", "viable", "plausible", "credible", "dubious",
+    "benign", "malignant", "acute", "chronic", "latent",
+    "itchy", "itchiness", "rash", "lesion", "patch",
+    "prognosis", "diagnosis", "symptom", "syndrome", "ailment",
+}
+
 
 def extract_terms(
     doc,
@@ -178,6 +226,12 @@ def extract_terms(
         # Never extract proper nouns as vocabulary terms
         if token.pos_ == "PROPN" or token.tag_ in ("NNP", "NNPS"):
             continue
+        # Skip known demonyms — these are entity-level items, not vocabulary
+        if token.text.lower() in KNOWN_DEMONYMS:
+            continue
+        # Skip capitalized words that look like demonyms (e.g. "Parisians")
+        if token.text[0].isupper() and token.text.lower().rstrip('s').endswith(tuple(s.rstrip('s') for s in ['ians', 'ans', 'ese'])):
+            continue
         if token.pos_ not in ("NOUN", "ADJ", "VERB", "ADV"):
             continue
 
@@ -241,6 +295,10 @@ def _compute_single_word_value(token, common_words: Set[str]) -> Tuple[float, st
     }
     if lemma in species_terms:
         return (0.85, Category.BIOLOGICAL_SPECIES, "biological species classification")
+
+    # 1b. Academic B2+ word check — override common-word filter
+    if lemma in ACADEMIC_B2_WORDS or surface in ACADEMIC_B2_WORDS:
+        return (0.65, Category.USEFUL_LEXICAL_ITEM, "B2+ academic/specialized vocabulary")
 
     # 2. Technical / Domain morpheme check
     is_technical = any(lemma.startswith(pref) for pref in TECHNICAL_AFFIXES) or \

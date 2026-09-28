@@ -133,8 +133,22 @@ class User(UserMixin):
         self.name = name
         self.role = role
 
+class GuestUser:
+    """Lightweight guest user that doesn't require DB storage."""
+    is_authenticated = True
+    is_active = True
+    is_anonymous = False
+    id = "guest"
+    identifier = "guest"
+    name = "Guest"
+    role = "guest"
+    def get_id(self):
+        return "guest"
+
 @login_manager.user_loader
 def load_user(user_id):
+    if user_id == "guest":
+        return GuestUser()
     u = cache.get_user_by_id(user_id)
     if u:
         return User(u[0], u[1], u[2], u[4])
@@ -679,13 +693,16 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None, mod
                 "evidence": occ.evidence,
             }
 
-        futures = [executor.submit(process_occurrence, occ) for occ in occurrences]
-        for future in futures:
+        futures = [(i, executor.submit(process_occurrence, occ)) for i, occ in enumerate(occurrences)]
+        # Collect all results first, then yield in original order for deterministic output
+        results_by_index = {}
+        for i, future in futures:
             try:
-                result = future.result(timeout=30)
-                yield send("term", result)
+                results_by_index[i] = future.result(timeout=30)
             except Exception as e:
                 logger.error(f"Occurrence processing failed: {e}")
+        for i in sorted(results_by_index.keys()):
+            yield send("term", results_by_index[i])
 
     # --- Phase 8: Entity Research ---
     yield send("status", "Researching entities...")
@@ -728,14 +745,15 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None, mod
                     }
                 }
 
-        futures = [executor.submit(process_entity, ent) for ent in entity_spans]
-        for future in futures:
+        futures = [(i, executor.submit(process_entity, ent)) for i, ent in enumerate(entity_spans)]
+        # Collect all results first, then yield in original order for deterministic output
+        entity_results_by_index = {}
+        for i, future in futures:
             try:
-                result = future.result(timeout=30)
-                yield send("entity", result)
+                entity_results_by_index[i] = future.result(timeout=30)
             except Exception as e:
                 logger.error(f"Entity future failed: {e}")
-                yield send("entity", {
+                entity_results_by_index[i] = {
                     "name": "Unknown Entity",
                     "summary": {
                         "label": "ORG",
@@ -745,7 +763,9 @@ def stream_analysis(text: str, direction: str, deepl_key: str | None = None, mod
                         "confidence": 0.0,
                         "confidence_level": "low",
                     }
-                })
+                }
+        for i in sorted(entity_results_by_index.keys()):
+            yield send("entity", entity_results_by_index[i])
 
     yield send("done", "Analysis complete.")
 
@@ -769,6 +789,10 @@ def login():
         name = request.form.get("name")
         identifier = request.form.get("identifier") # ID for student, Name for teacher
         password = request.form.get("password")
+
+        if role == "guest":
+            login_user(GuestUser())
+            return redirect(url_for("index"))
 
         if role == "student":
             if not name or not identifier:

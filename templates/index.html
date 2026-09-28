@@ -108,6 +108,7 @@
             </div>
 
             <div class="header__actions">
+                {% if user.role != 'guest' %}
                 <div class="user-badge">
                     <div class="user-avatar" title="{{ user.role | upper }}">
                         {{ user.name[0] | upper }}
@@ -117,6 +118,15 @@
                         <span class="user-role">{{ user.role }}</span>
                     </div>
                 </div>
+                {% else %}
+                <div class="user-badge">
+                    <div class="user-avatar" title="GUEST" style="background:var(--text-muted)">G</div>
+                    <div class="user-meta">
+                        <span class="user-name">Guest</span>
+                        <span class="user-role">guest</span>
+                    </div>
+                </div>
+                {% endif %}
 
                 <div class="action-group">
                     {% if user.role == 'teacher' %}
@@ -126,17 +136,26 @@
                     </a>
                     {% endif %}
 
+                    {% if user.role != 'guest' %}
                     <button class="btn btn--primary btn--sm action-btn" id="exercise-toggle" type="button">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
                         <span>Exercise</span>
                     </button>
+                    {% endif %}
                     <button class="btn btn--ghost btn--sm action-btn" id="settings-toggle" type="button">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
                         <span>Settings</span>
                     </button>
+                    {% if user.role != 'guest' %}
                     <a href="/logout" class="btn btn--ghost btn--sm action-btn logout-btn" title="Logout">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     </a>
+                    {% else %}
+                    <a href="/logout" class="btn btn--ghost btn--sm action-btn" title="Sign In">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                        <span>Sign In</span>
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>

@@ -42,6 +42,27 @@ ENTITY_LABEL_DISPLAY = {
 # Entity labels we care about
 RELEVANT_ENTITY_LABELS = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "WORK_OF_ART", "NORP", "FAC"}
 
+# Common abbreviations / acronyms that Wikipedia may not resolve directly
+COMMON_ABBREVIATIONS = {
+    "USA": "United States of America",
+    "UK": "United Kingdom",
+    "EU": "European Union",
+    "UN": "United Nations",
+    "WHO": "World Health Organization",
+    "NHS": "National Health Service",
+    "AAD": "American Academy of Dermatology",
+    "AMA": "American Medical Association",
+    "FDA": "Food and Drug Administration",
+    "CDC": "Centers for Disease Control and Prevention",
+    "NATO": "NATO",
+    "NASA": "NASA",
+    "MIT": "Massachusetts Institute of Technology",
+    "UCLA": "University of California, Los Angeles",
+    "BBC": "BBC",
+    "CNN": "CNN",
+    "IMF": "International Monetary Fund",
+}
+
 
 def detect_entities(
     doc,
@@ -281,40 +302,61 @@ def _wikipedia_search_contextual(
 ) -> Tuple[str, str, float]:
     """
     Search Wikipedia with context-aware disambiguation.
-
-    For "James Paget Hospital":
-    - Searches "James Paget Hospital" (full span, not "James")
-    - On disambiguation, filters options by entity type context (hospital, organization)
-    - Validates result matches expected type
+    Tries expanded abbreviations and alternative queries.
     """
-    try:
-        wikipedia.set_lang("en")
-        summary = wikipedia.summary(name, sentences=3)
+    # For short names / acronyms, try the expanded form first
+    search_names = [name]
+    name_upper = name.strip().upper()
+    if name_upper in COMMON_ABBREVIATIONS:
+        expanded = COMMON_ABBREVIATIONS[name_upper]
+        if expanded != name:
+            search_names.insert(0, expanded)  # Try expanded form first
 
-        # Validate: does the summary match the entity type?
-        if _validate_entity_summary(summary, entity_type, subtype, context):
-            return summary, "Wikipedia", 0.9
-        else:
-            # Summary doesn't match — try to find a better one
-            logger.info(f"Wikipedia summary for '{name}' doesn't match type {entity_type}, trying alternatives")
-            better = _try_wikipedia_alternatives(name, entity_type, subtype, context)
-            if better:
-                return better, "Wikipedia", 0.8
-            # Fall back to the original even if it's not perfect
-            return summary, "Wikipedia", 0.5
+    for search_name in search_names:
+        try:
+            wikipedia.set_lang("en")
+            summary = wikipedia.summary(search_name, sentences=3)
 
-    except wikipedia.exceptions.DisambiguationError as e:
-        # Context-aware disambiguation: pick the option that matches our entity type
-        if e.options:
-            best_option = _disambiguate_wikipedia(e.options, name, entity_type, subtype, context)
-            if best_option:
-                try:
-                    summary = wikipedia.summary(best_option, sentences=3)
-                    return summary, "Wikipedia", 0.85
-                except Exception:
-                    pass
-    except Exception as e:
-        logger.debug(f"Wikipedia lookup failed for '{name}': {e}")
+            # Validate: does the summary match the entity type?
+            if _validate_entity_summary(summary, entity_type, subtype, context):
+                return summary, "Wikipedia", 0.9
+            else:
+                # Summary doesn't match — try to find a better one
+                logger.info(f"Wikipedia summary for '{search_name}' doesn't match type {entity_type}, trying alternatives")
+                better = _try_wikipedia_alternatives(search_name, entity_type, subtype, context)
+                if better:
+                    return better, "Wikipedia", 0.8
+                # Fall back to the original even if it's not perfect
+                return summary, "Wikipedia", 0.5
+
+        except wikipedia.exceptions.DisambiguationError as e:
+            # Context-aware disambiguation: pick the option that matches our entity type
+            if e.options:
+                best_option = _disambiguate_wikipedia(e.options, search_name, entity_type, subtype, context)
+                if best_option:
+                    try:
+                        summary = wikipedia.summary(best_option, sentences=3)
+                        return summary, "Wikipedia", 0.85
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"Wikipedia lookup failed for '{search_name}': {e}")
+
+    # If all search names failed, try with entity type hint appended
+    if entity_type == "PERSON":
+        for hint in ["politician", "president", "person"]:
+            try:
+                results = wikipedia.search(f"{name} {hint}", results=3)
+                for r in results:
+                    if name.split()[0].lower() in r.lower() or name.split()[-1].lower() in r.lower():
+                        try:
+                            summary = wikipedia.summary(r, sentences=3)
+                            if _validate_entity_summary(summary, entity_type, subtype, context):
+                                return summary, "Wikipedia", 0.75
+                        except Exception:
+                            continue
+            except Exception:
+                continue
 
     return "", "", 0.0
 
@@ -446,19 +488,22 @@ def _validate_entity_summary(
         "ORG": {
             "positive": ["organization", "company", "institution", "hospital",
                          "university", "foundation", "corporation", "charity",
-                         "school", "college", "journal", "publication", "clinic"],
+                         "school", "college", "journal", "publication", "clinic",
+                         "academy", "association", "society", "agency", "department"],
             "negative": ["singer", "band", "album", "song", "film", "actor",
-                         "player", "athlete", "born"],
+                         "player", "athlete"],
         },
         "PERSON": {
             "positive": ["born", "is a", "was a", "politician", "author",
-                         "scientist", "researcher", "nurse", "doctor"],
+                         "scientist", "researcher", "nurse", "doctor",
+                         "president", "minister", "leader", "prime minister",
+                         "statesman", "served as", "elected"],
             "negative": ["company", "organization", "city", "country"],
         },
         "GPE": {
             "positive": ["city", "town", "village", "country", "state", "province",
                          "district", "municipality", "located", "population",
-                         "county", "borough", "parish"],
+                         "county", "borough", "parish", "republic", "nation"],
             "negative": ["band", "singer", "album", "company"],
         },
     }
