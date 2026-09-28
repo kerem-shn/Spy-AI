@@ -433,8 +433,12 @@
         const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Location": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group", "Facility": "organization" }[info.label_display] || "person";
         const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
 
-        // v2 subtype and location
-        const subtypeHTML = info.entity_subtype ? `<span class="entity-subtype-badge">${esc(info.entity_subtype)}</span>` : "";
+        // Determine single classification label: use refined subtype if available, else label_display
+        let badgeLabel = info.label_display || "Entity";
+        if (info.entity_subtype && info.entity_subtype.toLowerCase() !== "unknown" && info.entity_subtype.toLowerCase() !== "organization" && info.entity_subtype.toLowerCase() !== "person") {
+            badgeLabel = info.entity_subtype.replace(/_/g, " ");
+        }
+
         const locationHTML = info.location ? `<div style="margin-top:6px;font-size:.78rem;color:var(--text-secondary)">📍 ${esc(info.location)}</div>` : "";
 
         detailAnchor.innerHTML = `
@@ -442,8 +446,7 @@
             <button class="detail-panel__close" id="detail-close" title="Close">&times;</button>
             <div class="detail-panel__header">
                 <span class="detail-panel__word">${esc(name)}</span>
-                <span class="entity-type-badge entity-type-badge--${bc}">${esc(info.label_display)}</span>
-                ${subtypeHTML}
+                <span class="entity-type-badge entity-type-badge--${bc}">${esc(badgeLabel)}</span>
                 <div class="detail-panel__actions">
                     <a href="${url}" target="_blank" rel="noopener" class="btn--icon" title="Research on Google">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -487,10 +490,14 @@
             card.style.animationDelay = `${Math.min(idx * 0.05, 0.5)}s`;
             const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group" }[info.label_display] || "person";
             const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
+            let badgeLabel = info.label_display || "Entity";
+            if (info.entity_subtype && info.entity_subtype.toLowerCase() !== "unknown" && info.entity_subtype.toLowerCase() !== "organization" && info.entity_subtype.toLowerCase() !== "person") {
+                badgeLabel = info.entity_subtype.replace(/_/g, " ");
+            }
             card.innerHTML = `
                 <div class="entity-card__header">
                     <span class="entity-card__name">${esc(name)}</span>
-                    <span class="entity-type-badge entity-type-badge--${bc}">${esc(info.label_display)}</span>
+                    <span class="entity-type-badge entity-type-badge--${bc}">${esc(badgeLabel)}</span>
                     <div class="entity-card__actions"><a href="${url}" target="_blank" rel="noopener" class="btn--icon" title="Research on Google"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>
                 </div>
                 <p class="entity-card__summary">${esc(info.summary)}</p>

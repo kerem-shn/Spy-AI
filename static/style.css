@@ -323,18 +323,15 @@ a{color:var(--accent-cyan);text-decoration:none}a:hover{text-decoration:underlin
 .pos-badge--adv{background:rgba(192,132,252,0.15);color:#c084fc}
 .pos-badge--propn{background:rgba(248,113,113,0.15);color:#f87171}
 
-/* Confidence Badge */
-.confidence-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:600;margin-left:6px;font-family:'JetBrains Mono',monospace}
-.confidence-badge--high{background:rgba(34,197,94,0.12);color:#22c55e}
-.confidence-badge--medium{background:rgba(245,158,11,0.12);color:#f59e0b}
-.confidence-badge--low{background:rgba(239,68,68,0.12);color:#ef4444}
+/* Confidence Badge - Hidden */
+.confidence-badge { display: none !important; }
 
 /* Evidence Chips */
 .evidence-chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 0 4px}
 .evidence-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:.62rem;font-weight:500;background:var(--bg-card-hover);color:var(--text-muted);border:1px solid var(--border-subtle)}
 
-/* Entity Subtype Badge */
-.entity-subtype-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:.62rem;font-weight:600;background:rgba(124,58,237,0.1);color:var(--accent-purple);margin-left:4px;text-transform:lowercase;letter-spacing:0.02em}
+/* Entity Subtype Badge - Hidden (Refined subtype is displayed directly in primary badge) */
+.entity-subtype-badge { display: none !important; }
 
 /* Context sentence */
 .detail-panel__context{font-size:.82rem;color:var(--text-secondary);line-height:1.7;font-style:italic;padding:8px 12px;background:var(--bg-card-hover);border-radius:6px;border-left:3px solid var(--accent-cyan)}

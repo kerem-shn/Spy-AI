@@ -66,6 +66,24 @@ def disambiguate(
         lookup_words.append(occurrence.lemma.lower())
     if occurrence.surface and occurrence.surface.lower() not in lookup_words:
         lookup_words.append(occurrence.surface.lower())
+    if "-" in word:
+        dehyphen = word.replace("-", " ")
+        if dehyphen not in lookup_words:
+            lookup_words.append(dehyphen)
+    # Spelling normalization: -centred <-> -centered, -focussed <-> -focused
+    for w in list(lookup_words):
+        if "centred" in w:
+            alt = w.replace("centred", "centered")
+            if alt not in lookup_words:
+                lookup_words.append(alt)
+        elif "centered" in w:
+            alt = w.replace("centered", "centred")
+            if alt not in lookup_words:
+                lookup_words.append(alt)
+        if "focussed" in w:
+            alt = w.replace("focussed", "focused")
+            if alt not in lookup_words:
+                lookup_words.append(alt)
     if word.endswith("s") and len(word) > 3:
         if word.endswith("ies") and len(word) > 4:
             stem_y = word[:-3] + "y"
@@ -118,8 +136,8 @@ def disambiguate(
                 if wiki_var:
                     candidates.append(wiki_var)
 
-    # 6. Compound term decomposition (e.g. "aquatic biologist", "atmospheric scientist")
-    if not candidates and (" " in occurrence.surface or " " in word):
+    # 6. Compound term decomposition (e.g. "aquatic biologist", "person-centred")
+    if not candidates and (" " in occurrence.surface or " " in word or "-" in occurrence.surface or "-" in word):
         comp_senses = _extract_compound_senses(occurrence.surface or word, gtx_client)
         candidates.extend(comp_senses)
 
@@ -447,12 +465,71 @@ def _extract_variant_spelling(word: str, text: str) -> Optional[str]:
 
 
 def _extract_compound_senses(surface: str, gtx_client) -> List[SenseCandidate]:
-    """Decompose multi-word compound term into head + modifier for transparent definition."""
-    parts = surface.strip().split()
+    """Decompose multi-word or hyphenated compound term into head + modifier for transparent definition."""
+    clean = surface.strip().lower()
+    parts = re.split(r'[\s\-]+', clean)
     if len(parts) < 2:
         return []
     head = parts[-1]
     modifier = " ".join(parts[:-1])
+
+    # Specialized patterns for common compound adjectives
+    if head in ("centred", "centered"):
+        return [SenseCandidate(
+            definition=f"Focused on, centered around, or prioritizing the needs and preferences of {modifier}.",
+            source="Compound analysis",
+            score=0.85,
+            is_primary=True,
+        )]
+    elif head == "based":
+        return [SenseCandidate(
+            definition=f"Founded on, situated in, or primarily using {modifier}.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
+    elif head == "driven":
+        return [SenseCandidate(
+            definition=f"Motivated, guided, or determined by {modifier}.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
+    elif head in ("oriented", "orientated"):
+        return [SenseCandidate(
+            definition=f"Directed toward, designed for, or focused on {modifier}.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
+    elif head in ("focused", "focussed"):
+        return [SenseCandidate(
+            definition=f"Concentrated specifically on {modifier}.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
+    elif head == "led":
+        return [SenseCandidate(
+            definition=f"Guided, managed, or initiated by {modifier}.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
+    elif head == "friendly":
+        return [SenseCandidate(
+            definition=f"Suitable for, accommodating, or easy for {modifier} to use.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
+    elif head == "free":
+        return [SenseCandidate(
+            definition=f"Completely lacking, without, or exempt from {modifier}.",
+            source="Compound analysis",
+            score=0.80,
+            is_primary=True,
+        )]
 
     # Find definition for head noun
     head_senses = []
@@ -476,11 +553,13 @@ def _extract_compound_senses(surface: str, gtx_client) -> List[SenseCandidate]:
 
 def _wikipedia_summary_sense(term: str) -> Optional[SenseCandidate]:
     """Fallback to Wikipedia REST API summary for specialized vocabulary."""
+    import urllib.parse
+    import urllib.request
     clean = term.strip()
     if not clean:
         return None
     url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(clean)}"
-    req = urllib.request.Request(url, headers={"User-Agent": "SpyAITranslator/1.0 (edu@spyai.local)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "SpyAI/2.0 (student-assistant; mailto:admin@spyai.com)"})
     try:
         with urllib.request.urlopen(req, timeout=3.0) as resp:
             if resp.status == 200:

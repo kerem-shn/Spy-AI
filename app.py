@@ -107,6 +107,10 @@ except (OSError, ImportError):
             nlp = None
 
 wikipedia.set_lang("en")
+try:
+    wikipedia.set_user_agent("SpyAI/2.0 (student-assistant; mailto:admin@spyai.com)")
+except Exception:
+    pass
 
 app = Flask(__name__)
 # Enable ProxyFix for Railway / reverse proxy SSL termination and headers

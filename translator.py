@@ -388,16 +388,20 @@ def _contextual_translation(
                 if not has_stem_match:
                     other_words = [
                         w.lower() for w in re.findall(r'\b[a-zA-Z]{3,}\b', sentence)
-                        if w.lower() not in (word.lower(), surface.lower())
+                        if w.lower() not in (word.lower(), surface.lower(), "the", "and", "for", "with", "that", "this")
                     ]
-                    for ow in other_words[:4]:
+                    for ow in other_words:
                         try:
                             ow_tr = _normalize_for_comparison(translate_fn(ow))
-                            if ow_tr and (ow_tr in result_norm or result_norm in ow_tr):
+                            if ow_tr and (ow_tr in result_norm or result_norm in ow_tr or ow_tr[:4] == result_norm[:4]):
                                 logger.info(f"Marker drift detected: '{result}' belongs to '{ow}', not '{word}'")
                                 return None
                         except Exception:
                             pass
+                    # If it has zero stem match with isolated translation and isolated translations exist,
+                    # reject it to prevent erroneous translation hijacking
+                    logger.info(f"Rejecting contextual translation '{result}' for '{word}': zero stem match with {isolated_texts}")
+                    return None
 
             return TranslationCandidate(
                 text=result,
