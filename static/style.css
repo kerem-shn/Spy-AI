@@ -87,6 +87,7 @@ a{color:var(--accent-cyan);text-decoration:none}a:hover{text-decoration:underlin
 .file-info__details{display:flex;align-items:center;gap:10px;font-weight:500}
 .file-info__size{color:var(--text-muted);font-size:.82rem}
 .file-info__actions{display:flex;gap:10px}
+.file-info[hidden]{display:none!important}
 
 /* Loading */
 .loading-section{display:flex;justify-content:center;padding:48px 0}

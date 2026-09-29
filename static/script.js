@@ -6,11 +6,11 @@
     const siteHeader = $("site-header"), settingsToggle = $("settings-toggle"), settingsPanel = $("settings-panel");
     const uploadZone = $("upload-zone"), fileInput = $("file-input");
     const fileInfo = $("file-info"), fileName = $("file-name"), fileSize = $("file-size");
-    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn"), resultsClearBtn = $("results-clear-btn");
+    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn");
     const uploadSection = $("upload-section"), loadingSection = $("loading-section");
     const loadingStatus = $("loading-status"), loadingBarFill = $("loading-bar-fill");
     const resultsSection = $("results-section");
-    const statTerms = $("stat-terms"), statEntities = $("stat-entities"), statEngine = $("stat-engine");
+    const statTerms = $("stat-terms"), statEntities = $("stat-entities");
     const tabTerms = $("tab-terms"), tabEntities = $("tab-entities");
     const termsView = $("terms-view"), entitiesContainer = $("entities-container");
     const sourceTextView = $("source-text-view"), detailAnchor = $("detail-panel-anchor");
@@ -31,7 +31,11 @@
             if (saved) {
                 analysisData = JSON.parse(saved);
                 uploadZone.hidden = true;
+                fileInfo.style.display = "";
                 fileInfo.hidden = false;
+                if (analysisData.filename) {
+                    fileName.textContent = analysisData.filename;
+                }
                 analyzeBtn.hidden = true;
                 clearBtn.hidden = false;
                 initResultsUI();
@@ -59,8 +63,7 @@
         fileInput.addEventListener("change", () => { if (fileInput.files.length) handleFile(fileInput.files[0]) });
         analyzeBtn.addEventListener("click", runAnalysis);
         clearBtn.addEventListener("click", clearFile);
-        const resClear = $("results-clear-btn");
-        if (resClear) resClear.addEventListener("click", clearFile);
+
 
         // Tabs
         tabTerms.addEventListener("click", () => switchTab("terms"));
@@ -109,6 +112,7 @@
         selectedFile = f;
         fileName.textContent = f.name;
         fileSize.textContent = fmtSize(f.size);
+        fileInfo.style.display = "";
         fileInfo.hidden = false;
         uploadZone.hidden = true;
         analyzeBtn.hidden = false;
@@ -119,6 +123,9 @@
         selectedFile = null;
         fileInput.value = "";
         fileInfo.hidden = true;
+        fileInfo.style.display = "none";
+        fileName.textContent = "Upload a file!";
+        fileSize.textContent = "";
         uploadZone.hidden = false;
         uploadSection.style.display = "";
         uploadSection.style.visibility = "";
@@ -160,7 +167,7 @@
 
         const fd = new FormData(); fd.append("file", selectedFile); fd.append("direction", currentDirection);
 
-        analysisData = { source_text: "", terms: {}, entities: {}, stats: {}, segments: [] };
+        analysisData = { source_text: "", terms: {}, entities: {}, stats: {}, segments: [], filename: selectedFile.name };
 
         try {
             const response = await fetch("/upload", { method: "POST", body: fd });
@@ -242,12 +249,16 @@
         loadingSection.hidden = true;
         resultsSection.hidden = false;
         uploadZone.hidden = true;
+        fileInfo.style.display = "";
         fileInfo.hidden = false;
         analyzeBtn.hidden = true;
         clearBtn.hidden = false;
+        if (analysisData.filename) {
+            fileName.textContent = analysisData.filename;
+        }
         statTerms.textContent = analysisData.stats.total_terms;
         statEntities.textContent = analysisData.stats.total_entities;
-        statEngine.textContent = analysisData.stats.translation_engine || "Google Translate";
+
         sourceTextView.innerHTML = `<p>${analysisData.source_text.replace(/\n/g, "<br>")}</p>`;
         entitiesContainer.innerHTML = "";
         switchTab("terms");
