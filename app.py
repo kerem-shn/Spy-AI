@@ -118,6 +118,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "spy-ai-super-secret-key-123")
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 # Secure cookies in production environments (Railway / Render / HTTPS), disable for local development
 is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("RENDER") is not None or os.environ.get("FLASK_ENV") == "production"

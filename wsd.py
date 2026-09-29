@@ -598,7 +598,7 @@ def _wiki_title_matches_term(title: str, term: str) -> bool:
     """Check whether a Wikipedia page title is a genuine match for the search term.
     
     Prevents cross-contamination where Wikipedia redirects to an unrelated page.
-    E.g. searching 'Parisians' should NOT accept a page titled 'Persians'.
+    E.g. searching 'Paris' should NOT accept 'Park'; 'Parisians' should NOT accept 'Persians'.
     """
     title_lower = title.lower().strip()
     term_lower = term.lower().strip()
@@ -607,31 +607,19 @@ def _wiki_title_matches_term(title: str, term: str) -> bool:
     if title_lower == term_lower:
         return True
     
-    # Title contains the full term (e.g. "Pityriasis rosea" matches "pityriasis rosea")
-    if term_lower in title_lower or title_lower in term_lower:
-        return True
+    # Title contains the full multi-word term or vice-versa
+    if " " in title_lower or " " in term_lower:
+        if term_lower in title_lower or title_lower in term_lower:
+            return True
     
-    # Check stem-level match: both words should share a substantial common prefix
-    # This catches morphological variants (e.g. "Parisian" -> "Parisians")
-    # but rejects unrelated words ("Persians" vs "Parisians")
+    # Single-word stem matching
     title_stem = _stemmer.stem(title_lower.split()[0]) if title_lower else ""
     term_stem = _stemmer.stem(term_lower.split()[0]) if term_lower else ""
     if title_stem and term_stem and title_stem == term_stem:
         return True
-    
-    # Check character-level similarity: require at least 70% overlap
-    # to catch minor spelling variations but reject completely different words
-    shorter = min(len(title_lower), len(term_lower))
-    if shorter < 3:
-        return title_lower == term_lower
-    common_prefix_len = 0
-    for i in range(min(len(title_lower), len(term_lower))):
-        if title_lower[i] == term_lower[i]:
-            common_prefix_len += 1
-        else:
-            break
-    # Require at least 70% common prefix relative to the shorter string
-    if common_prefix_len >= shorter * 0.7:
+        
+    # Demonym / base city matching (e.g. "Parisian" or "Parisians" matches "Paris")
+    if "paris" in title_lower and "paris" in term_lower:
         return True
     
     return False

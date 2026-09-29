@@ -11,6 +11,9 @@ Key improvements over the old system:
 """
 
 import re
+import json
+import urllib.parse
+import urllib.request
 import logging
 from typing import List, Set, Tuple, Optional
 import wikipedia
@@ -317,9 +320,17 @@ def research_entity(
         cached = cache.get("entity_v2", name)
         if cached:
             cached_sum = cached.get("summary", "")
-            # Invalidate bad cache entries (e.g. inauguration for Erdogan)
-            is_stale_inauguration = "inauguration" in cached_sum.lower() and any(k in name.lower() for k in ["erdoğan", "erdogan", "recep"])
-            if not is_stale_inauguration and cached_sum and cached_sum != "No information available.":
+            is_stale = False
+            if "inauguration" in cached_sum.lower() and any(k in name.lower() for k in ["erdoğan", "erdogan", "recep"]):
+                is_stale = True
+            elif "park" in cached_sum.lower() and "paris" in name.lower() and "park" not in name.lower():
+                is_stale = True
+            elif "persian" in cached_sum.lower() and "parisian" in name.lower() and "persian" not in name.lower():
+                is_stale = True
+            elif not _entity_title_matches_name(cached_sum.split(".")[0], name, entity.entity_type):
+                is_stale = True
+
+            if not is_stale and cached_sum and cached_sum != "No information available.":
                 entity.description = cached_sum
                 entity.source = cached.get("source", "")
                 entity.location = cached.get("location")
@@ -390,71 +401,138 @@ def research_entity(
     return entity
 
 
+def _wikipedia_rest_summary(term: str) -> Optional[Tuple[str, str, str]]:
+    """Fetch summary directly from Wikipedia REST API.
+    Returns (title, extract, description) or None.
+    """
+    clean = term.strip()
+    if not clean:
+        return None
+    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(clean)}"
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "SpyAI/2.0 (student-assistant; mailto:admin@spyai.com)"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                page_title = data.get("title", "").strip()
+                extract = data.get("extract", "").strip()
+                desc = data.get("description", "").strip()
+                if extract:
+                    return page_title, extract, desc
+    except Exception:
+        pass
+    return None
+
+
+def _entity_title_matches_name(title: str, name: str, entity_type: str = "") -> bool:
+    """Validate that the returned page title genuinely corresponds to the entity name.
+    Rejects 'Park' for 'Paris', 'Persians' for 'Parisians', 'Third inauguration of...' for Erdogan, etc.
+    """
+    if not title or not name:
+        return False
+    t_clean = re.sub(r'\s*\([^)]*\)', '', title).lower().strip()
+    n_clean = name.lower().strip()
+    if n_clean.startswith("the "):
+        n_clean = n_clean[4:].strip()
+    if t_clean.startswith("the "):
+        t_clean = t_clean[4:].strip()
+
+    # Exact match
+    if t_clean == n_clean:
+        return True
+
+    # If entity is a PERSON, do NOT accept titles that are events/inaugurations/elections
+    if entity_type == "PERSON" or any(k in n_clean for k in ["erdoğan", "erdogan", "recep"]):
+        event_words = ["inauguration", "election", "presidency of", "premiership of", "assassination", "funeral"]
+        if any(ew in t_clean for ew in event_words) and not any(ew in n_clean for ew in event_words):
+            return False
+
+    # Demonym special case: e.g. "Paris" matches "Parisians" or "Parisian"
+    if "paris" in n_clean and "paris" in t_clean:
+        return True
+
+    if n_clean.rstrip('s') == t_clean.rstrip('s'):
+        return True
+
+    n_words = [w for w in re.findall(r'[a-zA-Z0-9]+', n_clean) if len(w) > 2]
+    t_words = [w for w in re.findall(r'[a-zA-Z0-9]+', t_clean) if len(w) > 2]
+    if not n_words or not t_words:
+        return t_clean == n_clean
+
+    matched_words = sum(1 for w in n_words if w in t_words or any(w in tw or tw in w for tw in t_words if len(tw) >= 4 and len(w) >= 4))
+    return matched_words >= max(1, len(n_words) * 0.7)
+
+
 def _wikipedia_search_contextual(
     name: str, entity_type: str, subtype: str, context: str
 ) -> Tuple[str, str, float]:
     """
     Search Wikipedia with context-aware disambiguation.
-    Tries expanded abbreviations and alternative queries.
+    Prioritizes official Wikipedia REST API, then falls back to python-wikipedia with auto_suggest=False.
     """
-    # For short names / acronyms, try the expanded form first
     search_names = [name]
-    name_upper = name.strip().upper()
+    name_clean = name.strip()
+    name_lower = name_clean.lower()
+    if name_lower.startswith("the ") and len(name_clean) > 4:
+        search_names.append(name_clean[4:].strip())
+    if name_lower.endswith("s") and len(name_clean) > 4:
+        search_names.append(name_clean[:-1].strip())
+    name_upper = name_clean.upper()
     if name_upper in COMMON_ABBREVIATIONS:
         expanded = COMMON_ABBREVIATIONS[name_upper]
         if expanded != name:
-            search_names.insert(0, expanded)  # Try expanded form first
+            search_names.insert(0, expanded)
 
+    # 1. First attempt: Wikipedia REST API (fastest, accurate, no auto_suggest corruption)
+    for search_name in search_names:
+        rest_res = _wikipedia_rest_summary(search_name)
+        if rest_res:
+            p_title, p_extract, p_desc = rest_res
+            if _entity_title_matches_name(p_title, name, entity_type):
+                if _is_person_summary(p_extract):
+                    return p_extract, "Wikipedia", 0.95
+                if _validate_entity_summary(p_extract, entity_type, subtype, context):
+                    return p_extract, "Wikipedia", 0.92
+
+    # 2. Fallback attempt: python-wikipedia with auto_suggest=False
     for search_name in search_names:
         try:
             wikipedia.set_lang("en")
-            try:
-                wikipedia.set_user_agent("SpyAI/2.0 (student-assistant; mailto:admin@spyai.com)")
-            except Exception:
-                pass
-            summary = wikipedia.summary(search_name, sentences=3)
-
-            # If the summary is clearly about the person directly, accept it immediately!
-            if _is_person_summary(summary):
-                return summary, "Wikipedia", 0.95
-
-            # Validate: does the summary match the entity type?
-            if _validate_entity_summary(summary, entity_type, subtype, context):
-                return summary, "Wikipedia", 0.9
-            else:
-                # If summary is a person summary, do NOT search for an organization
+            summary = wikipedia.summary(search_name, sentences=3, auto_suggest=False)
+            if _entity_title_matches_name(search_name, name, entity_type):
                 if _is_person_summary(summary):
                     return summary, "Wikipedia", 0.95
-                logger.info(f"Wikipedia summary for '{search_name}' doesn't match type {entity_type}, trying alternatives")
-                better = _try_wikipedia_alternatives(search_name, entity_type, subtype, context)
-                if better:
-                    return better, "Wikipedia", 0.8
-                # Fall back to the original even if it's not perfect
-                return summary, "Wikipedia", 0.5
-
-
+                if _validate_entity_summary(summary, entity_type, subtype, context):
+                    return summary, "Wikipedia", 0.9
+                else:
+                    better = _try_wikipedia_alternatives(search_name, entity_type, subtype, context)
+                    if better:
+                        return better, "Wikipedia", 0.8
+                    return summary, "Wikipedia", 0.5
         except wikipedia.exceptions.DisambiguationError as e:
-            # Context-aware disambiguation: pick the option that matches our entity type
             if e.options:
                 best_option = _disambiguate_wikipedia(e.options, search_name, entity_type, subtype, context)
-                if best_option:
+                if best_option and _entity_title_matches_name(best_option, name, entity_type):
                     try:
-                        summary = wikipedia.summary(best_option, sentences=3)
+                        summary = wikipedia.summary(best_option, sentences=3, auto_suggest=False)
                         return summary, "Wikipedia", 0.85
                     except Exception:
                         pass
         except Exception as e:
             logger.debug(f"Wikipedia lookup failed for '{search_name}': {e}")
 
-    # If all search names failed, try with entity type hint appended
+    # 3. Final hint search if PERSON
     if entity_type == "PERSON":
         for hint in ["politician", "president", "person"]:
             try:
                 results = wikipedia.search(f"{name} {hint}", results=3)
                 for r in results:
-                    if name.split()[0].lower() in r.lower() or name.split()[-1].lower() in r.lower():
+                    if _entity_title_matches_name(r, name, entity_type):
                         try:
-                            summary = wikipedia.summary(r, sentences=3)
+                            summary = wikipedia.summary(r, sentences=3, auto_suggest=False)
                             if _validate_entity_summary(summary, entity_type, subtype, context):
                                 return summary, "Wikipedia", 0.75
                         except Exception:
@@ -561,7 +639,7 @@ def _try_wikipedia_alternatives(
             for result in results:
                 if name.lower() in result.lower():
                     try:
-                        summary = wikipedia.summary(result, sentences=3)
+                        summary = wikipedia.summary(result, sentences=3, auto_suggest=False)
                         if _validate_entity_summary(summary, entity_type, subtype, context):
                             return summary
                     except Exception:

@@ -6,7 +6,7 @@
     const siteHeader = $("site-header"), settingsToggle = $("settings-toggle"), settingsPanel = $("settings-panel");
     const uploadZone = $("upload-zone"), fileInput = $("file-input");
     const fileInfo = $("file-info"), fileName = $("file-name"), fileSize = $("file-size");
-    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn"), newAnalysisBtn = $("new-analysis-btn");
+    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn"), resultsClearBtn = $("results-clear-btn");
     const uploadSection = $("upload-section"), loadingSection = $("loading-section");
     const loadingStatus = $("loading-status"), loadingBarFill = $("loading-bar-fill");
     const resultsSection = $("results-section");
@@ -30,6 +30,10 @@
             const saved = sessionStorage.getItem("spyai_analysis");
             if (saved) {
                 analysisData = JSON.parse(saved);
+                uploadZone.hidden = true;
+                fileInfo.hidden = false;
+                analyzeBtn.hidden = true;
+                clearBtn.hidden = false;
                 initResultsUI();
                 renderEntities(analysisData.entities);
                 incrementalRender();
@@ -55,7 +59,8 @@
         fileInput.addEventListener("change", () => { if (fileInput.files.length) handleFile(fileInput.files[0]) });
         analyzeBtn.addEventListener("click", runAnalysis);
         clearBtn.addEventListener("click", clearFile);
-        if (newAnalysisBtn) newAnalysisBtn.addEventListener("click", clearFile);
+        const resClear = $("results-clear-btn");
+        if (resClear) resClear.addEventListener("click", clearFile);
 
         // Tabs
         tabTerms.addEventListener("click", () => switchTab("terms"));
@@ -101,18 +106,28 @@
     function handleFile(f) {
         const ext = f.name.split(".").pop().toLowerCase();
         if (!["pdf", "docx", "doc", "txt"].includes(ext)) { showToast("Unsupported file type.", "error"); return }
-        selectedFile = f; fileName.textContent = f.name; fileSize.textContent = fmtSize(f.size); fileInfo.hidden = false;
+        selectedFile = f;
+        fileName.textContent = f.name;
+        fileSize.textContent = fmtSize(f.size);
+        fileInfo.hidden = false;
+        uploadZone.hidden = true;
+        analyzeBtn.hidden = false;
+        analyzeBtn.disabled = false;
+        clearBtn.hidden = false;
     }
     function clearFile() {
         selectedFile = null;
         fileInput.value = "";
         fileInfo.hidden = true;
-        resultsSection.hidden = true;
-        loadingSection.hidden = true;
-        // Fully restore the upload section
+        uploadZone.hidden = false;
         uploadSection.style.display = "";
         uploadSection.style.visibility = "";
         uploadSection.hidden = false;
+        loadingSection.hidden = true;
+        resultsSection.hidden = true;
+        analyzeBtn.hidden = false;
+        analyzeBtn.disabled = false;
+        clearBtn.hidden = false;
         analysisData = null;
         sessionStorage.removeItem("spyai_analysis");
         // Clear source text and detail panel
@@ -120,9 +135,10 @@
         if (detailAnchor) detailAnchor.innerHTML = "";
         if (entitiesContainer) entitiesContainer.innerHTML = "";
         // Also hide any exercise sections that may be visible
-        if (exerciseSelect) exerciseSelect.hidden = true;
-        if (exerciseQuiz) exerciseQuiz.hidden = true;
-        if (exerciseResults) exerciseResults.hidden = true;
+        const exSel = $("exercise-select"), exQuiz = $("exercise-quiz"), exRes = $("exercise-results");
+        if (exSel) exSel.hidden = true;
+        if (exQuiz) exQuiz.hidden = true;
+        if (exRes) exRes.hidden = true;
         // Scroll back to top
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -132,7 +148,12 @@
     // --- Analysis (Streaming) ---
     async function runAnalysis() {
         if (!selectedFile) { showToast("Please select a file.", "error"); return }
-        uploadSection.style.display = "none"; loadingSection.hidden = false; resultsSection.hidden = true;
+        uploadZone.hidden = true;
+        analyzeBtn.hidden = true;
+        clearBtn.hidden = false;
+        fileInfo.hidden = false;
+        loadingSection.hidden = false;
+        resultsSection.hidden = true;
         loadingStatus.textContent = "Connecting...";
         loadingBarFill.style.width = "5%";
         sessionStorage.removeItem("spyai_analysis");
@@ -169,7 +190,8 @@
             }
         } catch (err) {
             showToast(err.message || "Analysis failed.", "error");
-            uploadSection.style.display = "";
+            uploadZone.hidden = false;
+            analyzeBtn.hidden = false;
         } finally {
             loadingSection.hidden = true;
         }
@@ -217,7 +239,12 @@
     }
 
     function initResultsUI() {
+        loadingSection.hidden = true;
         resultsSection.hidden = false;
+        uploadZone.hidden = true;
+        fileInfo.hidden = false;
+        analyzeBtn.hidden = true;
+        clearBtn.hidden = false;
         statTerms.textContent = analysisData.stats.total_terms;
         statEntities.textContent = analysisData.stats.total_entities;
         statEngine.textContent = analysisData.stats.translation_engine || "Google Translate";
