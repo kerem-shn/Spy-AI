@@ -6,7 +6,7 @@
     const siteHeader = $("site-header"), settingsToggle = $("settings-toggle"), settingsPanel = $("settings-panel");
     const uploadZone = $("upload-zone"), fileInput = $("file-input");
     const fileInfo = $("file-info"), fileName = $("file-name"), fileSize = $("file-size");
-    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn");
+    const analyzeBtn = $("analyze-btn"), clearBtn = $("clear-btn"), newAnalysisBtn = $("new-analysis-btn");
     const uploadSection = $("upload-section"), loadingSection = $("loading-section");
     const loadingStatus = $("loading-status"), loadingBarFill = $("loading-bar-fill");
     const resultsSection = $("results-section");
@@ -55,6 +55,7 @@
         fileInput.addEventListener("change", () => { if (fileInput.files.length) handleFile(fileInput.files[0]) });
         analyzeBtn.addEventListener("click", runAnalysis);
         clearBtn.addEventListener("click", clearFile);
+        if (newAnalysisBtn) newAnalysisBtn.addEventListener("click", clearFile);
 
         // Tabs
         tabTerms.addEventListener("click", () => switchTab("terms"));
@@ -108,13 +109,22 @@
         fileInfo.hidden = true;
         resultsSection.hidden = true;
         loadingSection.hidden = true;
+        // Fully restore the upload section
         uploadSection.style.display = "";
+        uploadSection.style.visibility = "";
+        uploadSection.hidden = false;
         analysisData = null;
         sessionStorage.removeItem("spyai_analysis");
         // Clear source text and detail panel
         if (sourceTextView) sourceTextView.innerHTML = "";
         if (detailAnchor) detailAnchor.innerHTML = "";
         if (entitiesContainer) entitiesContainer.innerHTML = "";
+        // Also hide any exercise sections that may be visible
+        if (exerciseSelect) exerciseSelect.hidden = true;
+        if (exerciseQuiz) exerciseQuiz.hidden = true;
+        if (exerciseResults) exerciseResults.hidden = true;
+        // Scroll back to top
+        window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function fmtSize(b) { if (b < 1024) return b + " B"; if (b < 1048576) return (b / 1024).toFixed(1) + " KB"; return (b / 1048576).toFixed(1) + " MB" }
 
