@@ -1,8 +1,14 @@
+providers = ["python"]
+
+[variables]
+NIXPACKS_PYTHON_VERSION = "3.11"
+
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
 cmds = [
+    "python -m ensurepip --upgrade || true",
     "python -m pip install --upgrade pip",
     "pip install -r requirements.txt"
 ]
