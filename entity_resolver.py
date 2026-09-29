@@ -61,13 +61,15 @@ ENTITY_LABEL_DISPLAY = {
     "PRODUCT": "Product",
     "DATE": "Date",
     "LAW": "Law/Treaty",
+    "TECH": "Technology",
 }
 
 # Entity labels we care about
-RELEVANT_ENTITY_LABELS = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "WORK_OF_ART", "NORP", "FAC"}
+RELEVANT_ENTITY_LABELS = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "WORK_OF_ART", "NORP", "FAC", "PRODUCT", "TECH"}
 
 # Common abbreviations / acronyms that Wikipedia may not resolve directly
 COMMON_ABBREVIATIONS = {
+    "AI": "Artificial intelligence",
     "USA": "United States of America",
     "UK": "United Kingdom",
     "EU": "European Union",
@@ -117,6 +119,8 @@ def detect_entities(
         name_lower = name.lower()
         if any(kp in name_lower for kp in ["erdoğan", "erdogan", "recep tayyip"]):
             ent_label = "PERSON"
+        elif name_lower in ("ai", "artificial intelligence", "machine learning", "deep learning", "nlp"):
+            ent_label = "TECH"
         elif any(med in name_lower for med in ["dermatology", "cardiology", "neurology", "oncology", "pathology", "pediatrics"]):
             ent_label = "ORG"
 
@@ -232,8 +236,8 @@ def _is_valid_entity(name: str, label: str) -> bool:
     if name_stripped.isdigit():
         return False
 
-    # PERSON and GPE are usually reliable
-    if label in ("PERSON", "GPE"):
+    # PERSON, GPE, and TECH are usually reliable
+    if label in ("PERSON", "GPE", "TECH"):
         return True
 
     # NORP — keep if capitalized

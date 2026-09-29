@@ -178,6 +178,7 @@ a{color:var(--accent-cyan);text-decoration:none}a:hover{text-decoration:underlin
 .entity-type-badge--event{background:rgba(245,158,11,0.1);color:var(--accent-amber)}
 .entity-type-badge--work{background:rgba(244,63,94,0.1);color:var(--accent-rose)}
 .entity-type-badge--group{background:rgba(56,189,248,0.1);color:var(--accent-sky)}
+.entity-type-badge--tech,.entity-type-badge--product{background:rgba(14,165,233,0.1);color:#0ea5e9}
 .entity-card__summary{font-size:.9rem;color:var(--text-secondary);line-height:1.7}
 .entity-card__source{margin-top:10px;font-size:.72rem;color:var(--text-muted);display:flex;align-items:center;gap:6px}
 .source-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-green)}

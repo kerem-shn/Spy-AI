@@ -366,8 +366,21 @@
     function highlightParagraph(text, termMap, entityNames) {
         // Find entity positions
         const entityPos = [];
-        for (const name of entityNames) {
-            const re = new RegExp(escRe(name), "gi");
+        // Sort entity names longest-first so longer entities match before sub-parts
+        const sortedEntityNames = [...entityNames].sort((a, b) => b.length - a.length);
+        for (const name of sortedEntityNames) {
+            // Acronyms (<= 4 chars, all uppercase letters/digits like AI, USA, WHO) must be matched case-sensitively
+            // to avoid matching lowercase words or substrings like "us", "who", "it", "ai".
+            const isAcronym = (name.length <= 4 && name === name.toUpperCase() && /^[A-Z0-9]+$/.test(name));
+            const flags = isAcronym ? "gu" : "giu";
+
+            // Require word boundaries so entities don't match inside other words (e.g. "AI" inside "again", "fails", "said", "detailed")
+            let prefix = "(?<![\\p{L}\\p{N}])";
+            let suffix = "(?![\\p{L}\\p{N}])";
+            if (!/^[\p{L}\p{N}]/u.test(name)) prefix = "";
+            if (!/[\p{L}\p{N}]$/u.test(name)) suffix = "";
+
+            const re = new RegExp(prefix + escRe(name) + suffix, flags);
             let m; while ((m = re.exec(text)) !== null) {
                 const s = m.index, e = s + m[0].length;
                 if (!entityPos.some(p => !(e <= p.start || s >= p.end)))
@@ -379,7 +392,12 @@
         const termEntries = Object.entries(termMap).sort((a, b) => b[0].length - a[0].length);
         const termPos = [];
         for (const [surface, lemma] of termEntries) {
-            const re = new RegExp("\\b" + escRe(surface) + "\\b", "gi");
+            let prefix = "(?<![\\p{L}\\p{N}])";
+            let suffix = "(?![\\p{L}\\p{N}])";
+            if (!/^[\p{L}\p{N}]/u.test(surface)) prefix = "";
+            if (!/[\p{L}\p{N}]$/u.test(surface)) suffix = "";
+
+            const re = new RegExp(prefix + escRe(surface) + suffix, "giu");
             let m; while ((m = re.exec(text)) !== null) {
                 const s = m.index, e = s + m[0].length;
                 if (!entityPos.some(p => !(e <= p.start || s >= p.end)) && !termPos.some(p => !(e <= p.start || s >= p.end)))
@@ -478,7 +496,7 @@
 
     function showEntityDetail(name) {
         const info = analysisData.entities[name]; if (!info) return;
-        const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Location": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group", "Facility": "organization" }[info.label_display] || "person";
+        const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Location": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group", "Facility": "organization", "Technology": "tech", "Product": "product" }[info.label_display] || "person";
         const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
 
         // Determine single classification label: use refined subtype if available, else label_display
@@ -536,7 +554,7 @@
             if (!info) return; // guard against null entity summary
             const card = document.createElement("div"); card.classList.add("entity-card");
             card.style.animationDelay = `${Math.min(idx * 0.05, 0.5)}s`;
-            const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group" }[info.label_display] || "person";
+            const bc = { "Person": "person", "Organization": "organization", "Place": "place", "Event": "event", "Work of Art": "work", "Group/Nationality": "group", "Technology": "tech", "Product": "product" }[info.label_display] || "person";
             const url = `https://www.google.com/search?q=${encodeURIComponent(name)}`;
             let badgeLabel = info.label_display || "Entity";
             if (info.entity_subtype && info.entity_subtype.toLowerCase() !== "unknown" && info.entity_subtype.toLowerCase() !== "organization" && info.entity_subtype.toLowerCase() !== "person") {
