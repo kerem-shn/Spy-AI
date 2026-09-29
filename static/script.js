@@ -38,6 +38,7 @@
                 }
                 analyzeBtn.hidden = true;
                 clearBtn.hidden = false;
+                loadingSection.hidden = true;
                 initResultsUI();
                 renderEntities(analysisData.entities);
                 incrementalRender();
@@ -235,18 +236,22 @@
                 break;
             case "done":
                 loadingBarFill.style.width = "100%";
+                loadingStatus.textContent = "Analysis complete!";
+                setTimeout(() => {
+                    loadingSection.hidden = true;
+                }, 600);
                 showToast("Analysis complete!", "success");
                 // Persist results so F5 doesn't wipe them
                 try { sessionStorage.setItem("spyai_analysis", JSON.stringify(analysisData)); } catch(e){}
                 break;
             case "error":
                 showToast(payload, "error");
+                loadingSection.hidden = true;
                 break;
         }
     }
 
     function initResultsUI() {
-        loadingSection.hidden = true;
         resultsSection.hidden = false;
         uploadZone.hidden = true;
         fileInfo.style.display = "";
